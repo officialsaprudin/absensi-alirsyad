@@ -4,11 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistem Absensi Barcode Madrasah</title>
-    <link rel="icon" type="image/png" href="poto.png">
+    <link rel="icon" type="image/png" href="MI.png">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+    <!-- Tambahan Library SheetJS untuk Ekspor/Impor Excel (.xlsx) -->
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -259,8 +261,8 @@
                     <i data-lucide="scan-line" class="w-7 h-7 text-emerald-100"></i>
                 </div>
                 <div>
-                    <h1 class="text-xl font-bold tracking-tight">ABSEN MADRASAH</h1>
-                    <p class="text-xs text-emerald-200">Sistem Absensi Barcode & Manajemen Kelas Terpadu</p>
+                    <h1 class="text-xl font-bold tracking-tight">ABSENSI MADRASAH</h1>
+                    <p class="text-xs text-emerald-200">Sistem Absensi Barcode (NIS) & Manajemen Kelas Terpadu</p>
                 </div>
             </div>
 
@@ -409,16 +411,17 @@
                 <div class="flex justify-between items-center mb-6 flex-wrap gap-4">
                     <div>
                         <h3 class="text-lg font-bold text-slate-800">Manajemen Data Siswa & ID Card</h3>
-                        <p class="text-xs text-slate-500">Daftarkan siswa, import CSV, dan cetak kartu pelajar standar.</p>
+                        <p class="text-xs text-slate-500">Daftarkan siswa, import Excel, dan cetak kartu pelajar standar.</p>
                     </div>
                     <div id="student-action-buttons" class="hidden flex flex-wrap gap-2">
-                        <button onclick="downloadTemplateCSV()" class="bg-slate-700 hover:bg-slate-800 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition flex items-center gap-2 shadow-sm cursor-pointer">
-                            <i data-lucide="file-spreadsheet" class="w-4 h-4"></i> Download Template CSV
+                        <!-- UPDATE BUTTONS: EXCEL INSTEAD OF CSV -->
+                        <button onclick="downloadTemplateExcel()" class="bg-slate-700 hover:bg-slate-800 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition flex items-center gap-2 shadow-sm cursor-pointer">
+                            <i data-lucide="file-spreadsheet" class="w-4 h-4"></i> Download Template Excel
                         </button>
-                        <button onclick="triggerCSVImport()" class="bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition flex items-center gap-2 shadow-sm cursor-pointer">
-                            <i data-lucide="upload" class="w-4 h-4"></i> Import CSV
+                        <button onclick="triggerExcelImport()" class="bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition flex items-center gap-2 shadow-sm cursor-pointer">
+                            <i data-lucide="upload" class="w-4 h-4"></i> Import Excel
                         </button>
-                        <input type="file" id="csv-file-input" class="hidden" accept=".csv" onchange="handleCSVImport(event)">
+                        <input type="file" id="excel-file-input" class="hidden" accept=".xlsx, .xls" onchange="handleExcelImport(event)">
 
                         <button onclick="openBulkPrintModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition flex items-center gap-2 shadow-sm cursor-pointer">
                             <i data-lucide="printer" class="w-4 h-4"></i> Cetak Kartu Massal
@@ -444,8 +447,8 @@
                         <select id="filter-class-recap" onchange="renderRecapTable()" class="text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500">
                             <option value="Semua">Semua Kelas</option>
                         </select>
-                        <button onclick="exportCSV()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold px-4 py-2.5 rounded-xl transition flex items-center gap-2 cursor-pointer">
-                            <i data-lucide="download" class="w-4 h-4"></i> Export CSV
+                        <button onclick="exportExcel()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold px-4 py-2.5 rounded-xl transition flex items-center gap-2 cursor-pointer">
+                            <i data-lucide="download" class="w-4 h-4"></i> Export Excel
                         </button>
                     </div>
                 </div>
@@ -577,61 +580,6 @@
                     <button type="submit" class="bg-emerald-600 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition shadow-sm cursor-pointer">Simpan</button>
                 </div>
             </form>
-        </div>
-    </div>
-
-    <!-- MODAL: SINGLE ID CARD PREVIEW -->
-    <div id="barcode-card-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-        <div class="bg-white rounded-3xl shadow-2xl p-6 relative flex flex-col items-center">
-            <button onclick="closeBarcodeModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 no-print cursor-pointer"><i data-lucide="x" class="w-5 h-5"></i></button>
-            
-            <div class="mb-4 no-print text-center">
-                <h4 class="font-bold text-slate-800">Pratinjau Kartu (ID-1 / CR80)</h4>
-                <p class="text-xs text-slate-500">Ukuran presisi cetak.</p>
-            </div>
-
-            <!-- KARTU PREVIEW (324x204) -->
-            <div class="id-card-standard relative">
-                <!-- Header -->
-                <div class="bg-emerald-800 text-white py-1 px-2 rounded-[8px] text-center w-full shadow-sm flex-shrink-0">
-                    <h5 id="card-inst-name" class="font-extrabold text-[10px] tracking-wider uppercase m-0 leading-tight">YAYASAN</h5>
-                    <p id="card-sub-inst-name" class="text-[9px] text-emerald-100 font-medium m-0 leading-tight">SEKOLAH</p>
-                </div>
-                
-                <div class="text-center my-0.5 flex-shrink-0">
-                    <span class="text-[9px] font-bold text-slate-500 tracking-widest uppercase border-b border-slate-200 px-3 pb-0.5 inline-block">KARTU PELAJAR</span>
-                </div>
-                
-                <!-- Body (Foto & Data) -->
-                <div class="flex items-start gap-2.5 mt-1 flex-1 min-h-0">
-                    <img id="bc-modal-photo" src="" class="w-[60px] h-[80px] rounded-lg object-cover border border-emerald-600 shadow-sm flex-shrink-0 bg-emerald-50">
-                    <div class="overflow-hidden space-y-0.5 text-left text-[11px] leading-tight pt-1">
-                        <h4 id="bc-modal-name" class="font-bold text-slate-800 text-xs truncate">Nama Lengkap</h4>
-                        <p class="font-mono font-semibold text-emerald-800 text-[10px]">NIS: <span id="bc-modal-nis">000</span></p>
-                        <p class="text-slate-600 text-[10px]">Gender: <span id="bc-modal-gender">L</span></p>
-                        <p class="text-slate-600 text-[10px] line-clamp-2 leading-tight">Alamat: <span id="bc-modal-address">Jl.</span></p>
-                    </div>
-                </div>
-
-                <!-- Footer (Barcode & TTD, 2 Kolom) -->
-                <div class="flex justify-between items-end pt-1 border-t border-slate-100 mt-auto flex-shrink-0 h-[48px]">
-                    <div class="flex-1 flex flex-col justify-end pb-0.5">
-                        <svg id="student-barcode-svg" class="w-full" style="height: 22px; max-width: 140px;"></svg>
-                    </div>
-                    <div class="text-right text-[8px] text-slate-700 leading-tight flex-shrink-0 w-[110px] flex flex-col justify-end">
-                        <p class="m-0"><span id="card-city">Kota</span>, <span id="card-date">Tgl</span></p>
-                        <p id="card-leader-title" class="font-medium m-0">Kepala</p>
-                        <div class="h-5 flex items-center justify-end my-0.5 relative">
-                            <img id="card-leader-sig" src="" class="absolute bottom-0 right-0 max-h-5 object-contain" alt="">
-                        </div>
-                        <p id="card-leader-name" class="font-bold text-emerald-900 underline truncate m-0">Nama Kep</p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="flex gap-2 mt-4 w-full no-print">
-                <button onclick="window.print()" class="flex-1 bg-emerald-600 text-white text-sm font-semibold py-2.5 rounded-xl shadow-sm cursor-pointer">Cetak Kartu Ini</button>
-            </div>
         </div>
     </div>
 
@@ -836,7 +784,7 @@
 
             if (!studentDataUnlocked) {
                 actionBtns.classList.add('hidden');
-                container.innerHTML = `<div class="py-16 text-center text-slate-500 bg-slate-50 border border-dashed rounded-2xl"><i data-lucide="shield" class="w-8 h-8 mx-auto mb-2 text-slate-400"></i><p>Data dikunci oleh ADMIN.</p></div>`;
+                container.innerHTML = `<div class="py-16 text-center text-slate-500 bg-slate-50 border border-dashed rounded-2xl"><i data-lucide="shield" class="w-8 h-8 mx-auto mb-2 text-slate-400"></i><p>Dikunci oleh ADMIN.</p></div>`;
                 lucide.createIcons();
                 return;
             }
@@ -865,7 +813,6 @@
                     <td class="p-4"><span class="font-mono text-xs font-bold bg-emerald-50 px-2 py-1 border rounded-lg">${s.nis}</span></td>
                     <td class="p-4"><span class="text-xs font-semibold">${s.class_name}</span></td>
                     <td class="p-4 text-center flex justify-center gap-1">
-                        <button onclick="openBarcodeModal('${s.id}')" class="p-2 hover:bg-emerald-50 text-emerald-600 rounded-lg"><i data-lucide="printer" class="w-4 h-4"></i></button>
                         <button onclick="openStudentModal('${s.id}')" class="p-2 hover:bg-amber-50 text-amber-600 rounded-lg"><i data-lucide="edit" class="w-4 h-4"></i></button>
                         <button onclick="deleteStudent('${s.id}')" class="p-2 hover:bg-rose-50 text-rose-600 rounded-lg"><i data-lucide="trash" class="w-4 h-4"></i></button>
                     </td>
@@ -886,46 +833,20 @@
         // ID CARD & BULK PRINTING
         // ==========================================
         function populateCardElement(s, isBulk, idx = "") {
-            const prefix = isBulk ? `bulk-` : `bc-modal-`;
             const bcId = isBulk ? `#bulk-bc-svg-${idx}` : `#student-barcode-svg`;
 
-            if(!isBulk) {
-                document.getElementById('card-inst-name').innerText = schoolSettings.institutionName.toUpperCase();
-                document.getElementById('card-sub-inst-name').innerText = schoolSettings.subInstitutionName;
-                document.getElementById('card-city').innerText = schoolSettings.city;
-                document.getElementById('card-date').innerText = schoolSettings.cardIssueDate;
-                document.getElementById('card-leader-title').innerText = schoolSettings.leaderType;
-                document.getElementById('card-leader-name').innerText = schoolSettings.leaderName;
-                document.getElementById('card-leader-sig').src = schoolSettings.leaderSignature || '';
-                
-                document.getElementById('bc-modal-name').innerText = s.name;
-                document.getElementById('bc-modal-nis').innerText = s.nis;
-                document.getElementById('bc-modal-gender').innerText = s.gender === 'L' ? 'Laki-laki' : 'Perempuan';
-                document.getElementById('bc-modal-address').innerText = s.address;
-                document.getElementById('bc-modal-photo').src = s.photo;
-            }
-            
             setTimeout(() => {
                 JsBarcode(bcId, s.nis, {
                     format: "CODE128",
                     lineColor: "#0f172a",
                     width: 1.1,
-                    height: 22,
+                    height: 20,
                     displayValue: true,
                     fontSize: 8,
                     margin: 0
                 });
             }, 50);
         }
-
-        function openBarcodeModal(id) {
-            const s = mockStudents.find(x => x.id == id);
-            if(s) {
-                populateCardElement(s, false);
-                document.getElementById('barcode-card-modal').classList.remove('hidden');
-            }
-        }
-        function closeBarcodeModal() { document.getElementById('barcode-card-modal').classList.add('hidden'); }
 
         function openBulkPrintModal() {
             const sel = document.getElementById('bulk-class-select');
@@ -952,7 +873,7 @@
                         <span class="text-[9px] font-bold text-slate-500 tracking-widest uppercase border-b border-slate-200 px-3 pb-0.5 inline-block">KARTU PELAJAR</span>
                     </div>
                     
-                    <div class="flex items-start gap-2.5 mt-1 flex-1 min-h-0">
+                    <div class="flex items-start gap-2.5 mt-1 flex-1 min-h-0 pb-1">
                         <img src="${s.photo}" class="w-[60px] h-[80px] rounded-lg object-cover border border-emerald-600 shadow-sm flex-shrink-0 bg-emerald-50">
                         <div class="overflow-hidden space-y-0.5 text-left text-[11px] leading-tight pt-1">
                             <h4 class="font-bold text-slate-800 text-xs truncate">${s.name}</h4>
@@ -962,11 +883,11 @@
                         </div>
                     </div>
 
-                    <div class="flex justify-between items-end pt-1 border-t border-slate-100 mt-auto flex-shrink-0 h-[48px]">
-                        <div class="flex-1 flex flex-col justify-end pb-0.5">
-                            <svg id="bulk-bc-svg-${i}" class="w-full" style="height: 22px; max-width: 140px;"></svg>
+                    <div class="flex justify-between items-end pt-1 border-t border-slate-100 mt-auto flex-shrink-0" style="height: 48px;">
+                        <div class="w-1/2 flex flex-col justify-end pb-0.5">
+                            <svg id="bulk-bc-svg-${i}" class="w-full" style="height: 20px; max-width: 140px;"></svg>
                         </div>
-                        <div class="text-right text-[8px] text-slate-700 leading-tight flex-shrink-0 w-[110px] flex flex-col justify-end">
+                        <div class="w-1/2 text-right text-[8px] text-slate-700 leading-tight flex flex-col justify-end">
                             <p class="m-0">${schoolSettings.city}, ${schoolSettings.cardIssueDate}</p>
                             <p class="font-medium m-0">${schoolSettings.leaderType}</p>
                             <div class="h-5 flex items-center justify-end my-0.5 relative">
@@ -1132,47 +1053,115 @@
             }).join('');
         }
 
-        function downloadTemplateCSV() {
-            const csv = "nis,name,class_name,gender,address\n20240705,Siswa Contoh,VII-A (MTs),L,Jl. Contoh 123";
-            const a = document.createElement('a');
-            a.href = window.URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
-            a.download = 'template_siswa.csv';
-            a.click();
+        // ==========================================
+        // EXCEL EXPORT / IMPORT HANDLING (SheetJS)
+        // ==========================================
+        function downloadTemplateExcel() {
+            const templateData = [
+                { "NIS": "20240705", "Nama Lengkap": "Siswa Contoh", "Kelas": "VII-A (MTs)", "Gender (L/P)": "L", "Alamat": "Jl. Contoh 123" }
+            ];
+            const ws = XLSX.utils.json_to_sheet(templateData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Template_Siswa");
+            XLSX.writeFile(wb, "template_siswa.xlsx");
         }
 
-        function triggerCSVImport() { document.getElementById('csv-file-input').click(); }
+        function triggerExcelImport() { document.getElementById('excel-file-input').click(); }
         
-        function handleCSVImport(e) {
+        function handleExcelImport(e) {
             const file = e.target.files[0];
             if (!file) return;
+
             const reader = new FileReader();
             reader.onload = async (ev) => {
-                const lines = ev.target.result.split(/\r\n|\n/).filter(x=>x.trim()!=='');
-                let start = lines[0].toLowerCase().includes('nis') ? 1 : 0;
-                let payloads = [];
-                for(let i=start; i<lines.length; i++){
-                    const [nis, name, cls, gender, address] = lines[i].split(',').map(x=>x.trim());
-                    if(nis && name) {
-                        payloads.push({ nis, name, class_name: cls||'VII-A (MTs)', gender: gender||'L', address: address||'-', photo: `https://placehold.co/120x160/047857/ffffff?text=${name.charAt(0)}` });
+                try {
+                    const data = new Uint8Array(ev.target.result);
+                    const workbook = XLSX.read(data, {type: 'array'});
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    const json = XLSX.utils.sheet_to_json(worksheet, {raw: false});
+
+                    if(json.length === 0) {
+                        showToast("File Excel kosong", "error");
+                        return;
                     }
+
+                    let payloads = [];
+                    json.forEach(row => {
+                        // Toleransi pembacaan format kolom
+                        const nis = row['NIS'] || row['nis'];
+                        const name = row['Nama Lengkap'] || row['nama'] || row['name'];
+                        const cls = row['Kelas'] || row['kelas'] || row['class_name'] || 'VII-A (MTs)';
+                        const gender = row['Gender (L/P)'] || row['gender'] || row['jk'] || 'L';
+                        const address = row['Alamat'] || row['alamat'] || row['address'] || '-';
+
+                        if(nis && name) {
+                            payloads.push({
+                                nis: String(nis),
+                                name: String(name),
+                                class_name: String(cls),
+                                gender: String(gender).charAt(0).toUpperCase(),
+                                address: String(address),
+                                photo: `https://placehold.co/120x160/047857/ffffff?text=${String(name).charAt(0)}`
+                            });
+                        }
+                    });
+
+                    if(payloads.length === 0) {
+                        showToast("Format data tidak sesuai template", "error");
+                        return;
+                    }
+
+                    if(!is_preview && supabaseClient) {
+                        const { error } = await supabaseClient.from('students').insert(payloads);
+                        if(error) throw error;
+                        loadInitialData();
+                    } else {
+                        payloads.forEach(p => mockStudents.push({id: Date.now().toString()+Math.random(), ...p}));
+                        renderStudentsTable();
+                    }
+                    showToast(`Impor ${payloads.length} siswa berhasil`);
+                } catch (err) {
+                    console.error(err);
+                    showToast("Gagal memproses file Excel", "error");
                 }
-                
-                if(!is_preview && supabaseClient) {
-                    await supabaseClient.from('students').insert(payloads);
-                    loadInitialData();
-                } else {
-                    payloads.forEach(p => mockStudents.push({id: Date.now().toString()+Math.random(), ...p}));
-                    renderStudentsTable();
-                }
-                showToast(`Impor ${payloads.length} siswa berhasil`);
             };
-            reader.readAsText(file);
+            reader.readAsArrayBuffer(file);
             e.target.value = '';
         }
 
-        function exportCSV() {
-            // Logika CSV mirip di renderRecapTable
-            showToast('Ekspor CSV sedang diproses...');
+        function exportExcel() {
+            const cls = document.getElementById('filter-class-recap')?.value || 'Semua';
+            const list = cls === 'Semua' ? mockStudents : mockStudents.filter(s => s.class_name === cls);
+            
+            const exportData = list.map((s, i) => {
+                const att = mockAttendance.filter(a => a.nis === s.nis);
+                let h = att.length; 
+                let s_count = 0; let i_count = 0; let a_count = h === 0 ? 1 : 0;
+                let tot = h + s_count + i_count + a_count;
+                return {
+                    "No": i + 1,
+                    "NIS": s.nis,
+                    "Nama Siswa": s.name,
+                    "Kelas": s.class_name,
+                    "Hadir (H)": h,
+                    "Sakit (S)": s_count,
+                    "Izin (I)": i_count,
+                    "Alpa (A)": a_count,
+                    "Total": tot
+                };
+            });
+
+            if (exportData.length === 0) {
+                showToast("Tidak ada data untuk diekspor", "error");
+                return;
+            }
+
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Rekap_Absensi");
+            XLSX.writeFile(wb, `Rekap_Absensi_${cls}.xlsx`);
+            showToast('Ekspor Excel berhasil diunduh');
         }
 
         window.onload = function() {
