@@ -203,7 +203,9 @@
             cardIssueDate: "15 Juli 2026",
             leaderType: "Kepala Madrasah",
             leaderName: "Drs. H. M. Zarkasi, M.Pd.I",
-            leaderSignature: ""
+            leaderSignature: "",
+            academicYear: "2026/2027",
+            semester: "Ganjil"
         };
 
         // Fungsi dinamis untuk mengambil daftar kelas unik hanya dari data siswa aktual
@@ -308,6 +310,8 @@
                 nis: student.nis,
                 name: student.name,
                 class_name: student.class_name,
+                academic_year: schoolSettings.academicYear || "2026/2027",
+                semester: schoolSettings.semester || "Ganjil",
                 timestamp: currentTime,
                 date_str: todayStr,
                 status: 'Hadir',
@@ -329,6 +333,8 @@
                     nis: student.nis,
                     name: student.name,
                     class_name: student.class_name,
+                    academic_year: schoolSettings.academicYear || "2026/2027",
+                    semester: schoolSettings.semester || "Ganjil",
                     status: 'Hadir',
                     type: 'Masuk',
                     timestamp: currentTime,
@@ -375,6 +381,12 @@
                 <div>
                     <h1 class="text-xl font-bold tracking-tight">ABSENSI MADRASAH</h1>
                     <p class="text-xs text-emerald-200">Sistem Absensi Barcode (NIS) & Manajemen Kelas Terpadu</p>
+                </div>
+                <div class="hidden md:flex flex-col ml-3 pl-3 border-l border-emerald-800">
+                    <span class="text-[10px] text-emerald-300 font-semibold tracking-wider uppercase">Tahun Ajaran & Semester</span>
+                    <span id="header-period-badge" class="text-xs font-bold text-white bg-emerald-800/80 px-2.5 py-0.5 rounded-lg border border-emerald-700/60 mt-0.5">
+                        T.A. 2026/2027 • Semester Ganjil
+                    </span>
                 </div>
             </div>
 
@@ -596,6 +608,34 @@
                 </div>
 
                 <form onsubmit="saveSchoolSettings(event)" class="space-y-4">
+                    <div class="bg-emerald-50/80 border border-emerald-200 rounded-2xl p-4 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <h4 class="text-sm font-bold text-emerald-900 flex items-center gap-2">
+                                <i data-lucide="calendar" class="w-4 h-4 text-emerald-700"></i> Tahun Ajaran & Semester Berjalan
+                            </h4>
+                            <span class="text-[11px] bg-emerald-200 text-emerald-900 font-semibold px-2 py-0.5 rounded-full">Periode Aktif</span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-700 mb-1">Tahun Ajaran</label>
+                                <input type="text" id="set-academic-year" placeholder="Contoh: 2026/2027" required class="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-700 mb-1">Semester</label>
+                                <select id="set-semester" required class="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none">
+                                    <option value="Ganjil">Semester Ganjil (1)</option>
+                                    <option value="Genap">Semester Genap (2)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="pt-2 border-t border-emerald-200/60 flex items-center justify-between flex-wrap gap-2">
+                            <p class="text-[11px] text-slate-600">Pergantian semester baru? Reset kehadiran agar hitungan kembali nol.</p>
+                            <button type="button" onclick="openResetSemesterModal()" class="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 shadow-sm cursor-pointer">
+                                <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Reset Kehadiran (Semester Baru)
+                            </button>
+                        </div>
+                    </div>
+
                     <div>
                         <label class="block text-xs font-semibold text-slate-600 mb-1">Nama Yayasan / Lembaga</label>
                         <input type="text" id="set-inst-name" required class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500 outline-none">
@@ -662,7 +702,7 @@
     <!-- Footer Developer Attribution -->
     <footer class="no-print bg-emerald-950 text-emerald-300/80 text-xs py-3 border-t border-emerald-800/80 text-center flex-shrink-0">
         <div class="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-1.5 text-[11px]">
-            <p>© 2026 Madrasah • Sistem Absensi Terpadu</p>
+            <p>© 2026 MADRASAH • Sistem Absensi Terpadu</p>
             <p class="font-medium flex items-center gap-1.5">
                 <span>Developer:</span>
                 <span class="text-white font-bold">Saprudin, S.Ag</span>
@@ -741,6 +781,39 @@
                 </button>
                 <button type="button" onclick="window.print()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition shadow-sm flex items-center gap-1.5 cursor-pointer">
                     <i data-lucide="printer" class="w-4 h-4"></i> Cetak Kartu Ini
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: KONFIRMASI RESET SEMESTER BARU -->
+    <div id="reset-semester-modal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 space-y-4 animate-in fade-in zoom-in duration-200">
+            <div class="flex items-center gap-3 text-rose-700 pb-2 border-b border-slate-100">
+                <div class="w-10 h-10 rounded-2xl bg-rose-100 flex items-center justify-center flex-shrink-0">
+                    <i data-lucide="alert-triangle" class="w-5 h-5 text-rose-600"></i>
+                </div>
+                <div>
+                    <h3 class="font-bold text-slate-800 text-base">Konfirmasi Reset Semester Baru</h3>
+                    <p class="text-xs text-slate-500">Mulai lembar absensi baru untuk seluruh siswa</p>
+                </div>
+            </div>
+            
+            <div class="space-y-2 text-xs text-slate-600 leading-relaxed bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                <p>Apakah Anda yakin ingin memulai semester baru dan <strong>mereset seluruh kehadiran menjadi 0</strong>?</p>
+                <div class="p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 text-emerald-900 font-medium">
+                    <p id="reset-modal-preview">Tahun Ajaran: 2026/2027 • Semester: Ganjil</p>
+                </div>
+                <p class="text-[11px] text-slate-500">• Seluruh akumulasi kehadiran siswa akan kembali ke angka nol.</p>
+                <p class="text-[11px] text-slate-500">• Data siswa, foto, dan pengaturan KOP madrasah <strong>tidak akan terhapus</strong>.</p>
+            </div>
+
+            <div class="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <button type="button" onclick="closeResetSemesterModal()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold px-4 py-2.5 rounded-xl transition cursor-pointer">
+                    Batal
+                </button>
+                <button type="button" onclick="confirmResetAttendance()" class="bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition shadow-sm flex items-center gap-1.5 cursor-pointer">
+                    <i data-lucide="rotate-ccw" class="w-4 h-4"></i> Ya, Reset Kehadiran ke 0
                 </button>
             </div>
         </div>
@@ -1330,7 +1403,16 @@
         // ==========================================
         // SETTINGS & MISC
         // ==========================================
+        function updateAcademicBadge() {
+            const badge = document.getElementById('header-period-badge');
+            if (badge) {
+                badge.innerText = `T.A. ${schoolSettings.academicYear || '2026/2027'} • Semester ${schoolSettings.semester || 'Ganjil'}`;
+            }
+        }
+
         function loadSettingsForm() {
+            document.getElementById('set-academic-year').value = schoolSettings.academicYear || "2026/2027";
+            document.getElementById('set-semester').value = schoolSettings.semester || "Ganjil";
             document.getElementById('set-inst-name').value = schoolSettings.institutionName;
             document.getElementById('set-sub-inst-name').value = schoolSettings.subInstitutionName;
             document.getElementById('set-logo-img').src = schoolSettings.institutionLogo || '';
@@ -1341,6 +1423,48 @@
             document.getElementById('set-leader-name').value = schoolSettings.leaderName;
             document.getElementById('set-sig-img').src = schoolSettings.leaderSignature || '';
             document.getElementById('set-sig-url').value = schoolSettings.leaderSignature || '';
+        }
+
+        function openResetSemesterModal() {
+            const year = document.getElementById('set-academic-year').value.trim() || schoolSettings.academicYear || '2026/2027';
+            const sem = document.getElementById('set-semester').value || schoolSettings.semester || 'Ganjil';
+            const previewEl = document.getElementById('reset-modal-preview');
+            if (previewEl) {
+                previewEl.innerText = `Target Periode: Tahun Ajaran ${year} • Semester ${sem}`;
+            }
+            document.getElementById('reset-semester-modal').classList.remove('hidden');
+        }
+
+        function closeResetSemesterModal() {
+            document.getElementById('reset-semester-modal').classList.add('hidden');
+        }
+
+        async function confirmResetAttendance() {
+            const newYear = document.getElementById('set-academic-year').value.trim() || '2026/2027';
+            const newSemester = document.getElementById('set-semester').value || 'Ganjil';
+
+            schoolSettings.academicYear = newYear;
+            schoolSettings.semester = newSemester;
+            localStorage.setItem('sensasi_settings', JSON.stringify(schoolSettings));
+
+            // Kosongkan riwayat kehadiran sesi ini agar kembali 0
+            mockAttendance = [];
+
+            if (!is_preview && supabaseClient) {
+                try {
+                    // Di database, hapus log absensi lama untuk menyegarkan periode baru
+                    await supabaseClient.from('attendance').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+                } catch (err) {
+                    console.error("Gagal mereset absensi di Supabase:", err);
+                }
+            }
+
+            closeResetSemesterModal();
+            updateAcademicBadge();
+            renderAttendanceLog();
+            renderRecapTable();
+            updateStats();
+            showToast(`Semester Baru (${newYear} - ${newSemester}) aktif! Kehadiran direset ke 0.`, 'success');
         }
 
         function handleLogoUpload(e) {
@@ -1369,7 +1493,12 @@
 
         function saveSchoolSettings(e) {
             e.preventDefault();
+            const prevYear = schoolSettings.academicYear;
+            const prevSem = schoolSettings.semester;
+
             schoolSettings = {
+                academicYear: document.getElementById('set-academic-year').value.trim() || "2026/2027",
+                semester: document.getElementById('set-semester').value || "Ganjil",
                 institutionName: document.getElementById('set-inst-name').value,
                 subInstitutionName: document.getElementById('set-sub-inst-name').value,
                 institutionLogo: document.getElementById('set-logo-url').value,
@@ -1380,7 +1509,16 @@
                 leaderSignature: document.getElementById('set-sig-url').value
             };
             localStorage.setItem('sensasi_settings', JSON.stringify(schoolSettings));
-            showToast('Pengaturan Tersimpan');
+            updateAcademicBadge();
+
+            // Jika admin mengganti tahun ajaran atau semester, rekap otomatis mengisolasi periode baru
+            if (prevYear !== schoolSettings.academicYear || prevSem !== schoolSettings.semester) {
+                renderRecapTable();
+                updateStats();
+                showToast(`Periode aktif diperbarui: T.A. ${schoolSettings.academicYear} - Semester ${schoolSettings.semester}`, 'info');
+            } else {
+                showToast('Pengaturan Tersimpan');
+            }
         }
 
         function renderRecapTable() {
@@ -1389,8 +1527,13 @@
             const list = cls === 'Semua' ? mockStudents : mockStudents.filter(s => s.class_name === cls);
             
             tbody.innerHTML = list.map((s, i) => {
-                const att = mockAttendance.filter(a => a.nis === s.nis);
-                let h = att.length; // saat ini hanya ada status Hadir dari scanner
+                // Kehadiran hanya dihitung untuk Tahun Ajaran dan Semester aktif yang disetel admin
+                const att = mockAttendance.filter(a => 
+                    a.nis === s.nis && 
+                    (!a.academic_year || a.academic_year === schoolSettings.academicYear) &&
+                    (!a.semester || a.semester === schoolSettings.semester)
+                );
+                let h = att.length; 
                 let s_count = 0; let i_count = 0; let a_count = h === 0 ? 1 : 0;
                 let tot = h + s_count + i_count + a_count;
                 return `
@@ -1540,6 +1683,7 @@
 
         window.onload = function() {
             lucide.createIcons();
+            updateAcademicBadge();
             loadInitialData();
         };
     </script>
