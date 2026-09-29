@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistem Absensi Barcode Madrasah</title>
-    <link rel="icon" type="image/png" href="MI.png">
+    <link rel="icon" type="image/png" href="poto.png">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -50,7 +50,7 @@
             #bulk-print-modal, #bulk-print-modal *, #barcode-card-modal, #barcode-card-modal * {
                 visibility: visible;
             }
-            #bulk-print-modal {
+            #bulk-print-modal, #barcode-card-modal {
                 position: absolute;
                 left: 0;
                 top: 0;
@@ -58,6 +58,11 @@
                 background: white !important;
                 padding: 0 !important;
                 margin: 0 !important;
+            }
+            #single-card-wrapper {
+                display: flex;
+                justify-content: center;
+                padding-top: 10mm;
             }
             #bulk-cards-grid {
                 display: grid;
@@ -99,8 +104,12 @@
             leaderSignature: ""
         };
 
-        const defaultClasses = ["VII-A (MTs)", "VII-B (MTs)", "VIII-A (MTs)", "VIII-B (MTs)", "IX-A (MTs)", "IX-B (MTs)"];
-        
+        // Fungsi dinamis untuk mengambil daftar kelas unik hanya dari data siswa aktual
+        function getAvailableClasses() {
+            const classes = [...new Set(mockStudents.map(s => s.class_name ? s.class_name.trim() : '').filter(Boolean))];
+            return classes.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+        }
+
         let mockStudents = [];
         let mockAttendance = [];
 
@@ -161,6 +170,7 @@
                     showToast("Gagal memuat data dari database. Periksa koneksi.", "error");
                 }
             }
+            updateClassDropdowns();
             renderAttendanceLog();
             updateStats();
         }
@@ -330,11 +340,11 @@
 
                 <div class="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col justify-between">
                     <div>
-                        <div class="flex justify-between items-center border-b border-slate-100 pb-4 mb-4">
+                        <div class="flex justify-between items-center border-b border-slate-100 pb-4 mb-4 flex-wrap gap-2">
                             <h3 class="font-bold text-slate-800 flex items-center gap-2">
                                 <i data-lucide="monitor" class="w-5 h-5 text-emerald-600"></i> Informasi Scan Terakhir
                             </h3>
-                            <span id="current-clock" class="text-sm font-semibold text-slate-500 bg-slate-100 px-3 py-1 rounded-full"></span>
+                            <div id="current-clock" class="bg-emerald-50 border border-emerald-200/90 px-4 py-2 rounded-xl shadow-sm"></div>
                         </div>
 
                         <div id="display-card" class="bg-gradient-to-br from-emerald-800 to-emerald-950 text-white rounded-2xl p-6 shadow-md flex flex-col sm:flex-row items-center gap-6 min-h-[200px] justify-center transition-all">
@@ -555,8 +565,9 @@
                 </div>
                 <div class="grid grid-cols-2 gap-3">
                     <div>
-                        <label class="block text-xs font-semibold text-slate-600 mb-1">Kelas</label>
-                        <select id="input-class" required class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"></select>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Kelas (Bebas Input SD / SMP / SMA)</label>
+                        <input type="text" id="input-class" list="class-suggestions" placeholder="Contoh: 1-A, VII-A, X-IPA" required class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500 outline-none">
+                        <datalist id="class-suggestions"></datalist>
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-slate-600 mb-1">Jenis Kelamin</label>
@@ -580,6 +591,32 @@
                     <button type="submit" class="bg-emerald-600 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition shadow-sm cursor-pointer">Simpan</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- MODAL: PREVIEW & CETAK KARTU BARCODE SATU SISWA -->
+    <div id="barcode-card-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 hidden flex flex-col items-center justify-center p-4">
+        <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 space-y-5 animate-in fade-in zoom-in duration-200">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3 no-print">
+                <h3 class="font-bold text-slate-800 text-base flex items-center gap-2">
+                    <i data-lucide="barcode" class="w-5 h-5 text-emerald-600"></i> Kartu Barcode Pelajar
+                </h3>
+                <button onclick="closeSingleCardModal()" class="text-slate-400 hover:text-slate-600 cursor-pointer">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            
+            <!-- Tempat Pratinjau Kartu Pelajar -->
+            <div id="single-card-wrapper" class="flex justify-center p-2"></div>
+
+            <div class="flex justify-end gap-2 pt-3 border-t border-slate-100 no-print">
+                <button type="button" onclick="closeSingleCardModal()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold px-4 py-2.5 rounded-xl transition cursor-pointer">
+                    Tutup
+                </button>
+                <button type="button" onclick="window.print()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition shadow-sm flex items-center gap-1.5 cursor-pointer">
+                    <i data-lucide="printer" class="w-4 h-4"></i> Cetak Kartu Ini
+                </button>
+            </div>
         </div>
     </div>
 
@@ -669,7 +706,16 @@
             const el = document.getElementById('current-clock');
             if(el) {
                 const now = new Date();
-                el.innerHTML = `<i data-lucide="clock" class="w-3.5 h-3.5 inline mr-1"></i> ${now.toLocaleDateString('id-ID', {weekday:'long', day:'numeric', month:'short', year:'numeric'})} - ${now.toLocaleTimeString('id-ID')}`;
+                const dateStr = now.toLocaleDateString('id-ID', {weekday:'long', day:'numeric', month:'short', year:'numeric'});
+                const timeStr = now.toLocaleTimeString('id-ID');
+                el.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <i data-lucide="clock" class="w-5 h-5 text-emerald-700 animate-pulse"></i>
+                        <span class="text-sm sm:text-base font-semibold text-slate-700">${dateStr}</span>
+                        <span class="text-slate-300 font-light">|</span>
+                        <span class="text-lg sm:text-2xl font-extrabold font-mono text-emerald-950 tracking-wider">${timeStr}</span>
+                    </div>
+                `;
                 lucide.createIcons();
             }
         }, 1000);
@@ -740,6 +786,14 @@
             fsTimer = setTimeout(() => overlay.classList.add('hidden'), 4000);
         }
 
+        function closeFullscreenOverlay() {
+            clearTimeout(fsTimer);
+            const overlay = document.getElementById('fullscreen-overlay');
+            if (overlay) {
+                overlay.classList.add('hidden');
+            }
+        }
+
         function showDisplayScreen(student, timeStr) {
             document.getElementById('display-empty').classList.add('hidden');
             document.getElementById('display-content').classList.remove('hidden');
@@ -784,15 +838,20 @@
 
             if (!studentDataUnlocked) {
                 actionBtns.classList.add('hidden');
-                container.innerHTML = `<div class="py-16 text-center text-slate-500 bg-slate-50 border border-dashed rounded-2xl"><i data-lucide="shield" class="w-8 h-8 mx-auto mb-2 text-slate-400"></i><p>Dikunci oleh ADMIN.</p></div>`;
+                container.innerHTML = `<div class="py-16 text-center text-slate-500 bg-slate-50 border border-dashed rounded-2xl"><i data-lucide="shield" class="w-8 h-8 mx-auto mb-2 text-slate-400"></i><p>Data dikunci oleh ADMIN.</p></div>`;
                 lucide.createIcons();
                 return;
             }
             actionBtns.classList.remove('hidden');
 
+            const dynamicClasses = getAvailableClasses();
+            if (appState.selectedClassFilter !== 'Semua' && !dynamicClasses.includes(appState.selectedClassFilter)) {
+                appState.selectedClassFilter = 'Semua';
+            }
+
             let filterHTML = `<div class="flex gap-2 mb-4 overflow-x-auto pb-2">
                 <button onclick="filterStudents('Semua')" class="px-3 py-1.5 rounded-xl text-xs font-semibold transition ${appState.selectedClassFilter === 'Semua' ? 'bg-emerald-800 text-white' : 'bg-slate-100'}">Semua</button>`;
-            defaultClasses.forEach(c => {
+            dynamicClasses.forEach(c => {
                 filterHTML += `<button onclick="filterStudents('${c}')" class="px-3 py-1.5 rounded-xl text-xs font-semibold transition ${appState.selectedClassFilter === c ? 'bg-emerald-800 text-white' : 'bg-slate-100 whitespace-nowrap'}">${c}</button>`;
             });
             filterHTML += `</div>`;
@@ -810,11 +869,22 @@
                         <img src="${s.photo}" class="w-[45px] h-[60px] rounded-lg object-cover flex-shrink-0">
                         <div class="truncate"><p class="font-bold text-slate-800 truncate">${s.name}</p><p class="text-xs text-slate-400 truncate">${s.address}</p></div>
                     </td>
-                    <td class="p-4"><span class="font-mono text-xs font-bold bg-emerald-50 px-2 py-1 border rounded-lg">${s.nis}</span></td>
+                    <td class="p-4">
+                        <button onclick="openSingleCardModal('${s.id}')" title="Klik untuk lihat & cetak Kartu Barcode" class="font-mono text-xs font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-900 px-2.5 py-1.5 border border-emerald-200 rounded-lg transition inline-flex items-center gap-1.5 cursor-pointer">
+                            <i data-lucide="barcode" class="w-3.5 h-3.5 text-emerald-700"></i> ${s.nis}
+                        </button>
+                    </td>
                     <td class="p-4"><span class="text-xs font-semibold">${s.class_name}</span></td>
-                    <td class="p-4 text-center flex justify-center gap-1">
-                        <button onclick="openStudentModal('${s.id}')" class="p-2 hover:bg-amber-50 text-amber-600 rounded-lg"><i data-lucide="edit" class="w-4 h-4"></i></button>
-                        <button onclick="deleteStudent('${s.id}')" class="p-2 hover:bg-rose-50 text-rose-600 rounded-lg"><i data-lucide="trash" class="w-4 h-4"></i></button>
+                    <td class="p-4 text-center flex justify-center items-center gap-1">
+                        <button onclick="openSingleCardModal('${s.id}')" title="Lihat & Cetak Kartu Barcode" class="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg transition cursor-pointer">
+                            <i data-lucide="barcode" class="w-4 h-4"></i>
+                        </button>
+                        <button onclick="openStudentModal('${s.id}')" title="Edit Data Siswa" class="p-2 hover:bg-amber-50 text-amber-600 rounded-lg transition cursor-pointer">
+                            <i data-lucide="edit" class="w-4 h-4"></i>
+                        </button>
+                        <button onclick="deleteStudent('${s.id}')" title="Hapus Siswa" class="p-2 hover:bg-rose-50 text-rose-600 rounded-lg transition cursor-pointer">
+                            <i data-lucide="trash" class="w-4 h-4"></i>
+                        </button>
                     </td>
                 </tr>`;
             });
@@ -832,6 +902,67 @@
         // ==========================================
         // ID CARD & BULK PRINTING
         // ==========================================
+        function openSingleCardModal(id) {
+            const s = mockStudents.find(x => x.id == id);
+            if (!s) return;
+            const container = document.getElementById('single-card-wrapper');
+            container.innerHTML = `
+                <div class="id-card-standard relative shadow-md mx-auto">
+                    <div class="bg-emerald-800 text-white py-1 px-2 rounded-[8px] text-center w-full shadow-sm flex-shrink-0">
+                        <h5 class="font-extrabold text-[10px] tracking-wider uppercase m-0 leading-tight">${schoolSettings.institutionName.toUpperCase()}</h5>
+                        <p class="text-[9px] text-emerald-100 font-medium m-0 leading-tight">${schoolSettings.subInstitutionName}</p>
+                    </div>
+                    
+                    <div class="text-center my-0.5 flex-shrink-0">
+                        <span class="text-[9px] font-bold text-slate-500 tracking-widest uppercase border-b border-slate-200 px-3 pb-0.5 inline-block">KARTU PELAJAR</span>
+                    </div>
+                    
+                    <div class="flex items-start gap-2.5 mt-1 flex-1 min-h-0 pb-1">
+                        <img src="${s.photo}" class="w-[60px] h-[80px] rounded-lg object-cover border border-emerald-600 shadow-sm flex-shrink-0 bg-emerald-50">
+                        <div class="overflow-hidden space-y-0.5 text-left text-[11px] leading-tight pt-1">
+                            <h4 class="font-bold text-slate-800 text-xs truncate">${s.name}</h4>
+                            <p class="font-mono font-semibold text-emerald-800 text-[10px]">NIS: ${s.nis}</p>
+                            <p class="text-slate-600 text-[10px]">Gender: ${s.gender === 'L' ? 'Laki-laki' : 'Perempuan'}</p>
+                            <p class="text-slate-600 text-[10px] line-clamp-2 leading-tight">Alamat: ${s.address}</p>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-between items-end pt-1 border-t border-slate-100 mt-auto flex-shrink-0" style="height: 48px;">
+                        <div class="w-1/2 flex flex-col justify-end pb-0.5">
+                            <svg id="single-card-bc-svg" class="w-full" style="height: 20px; max-width: 140px;"></svg>
+                        </div>
+                        <div class="w-1/2 text-right text-[8px] text-slate-700 leading-tight flex flex-col justify-end">
+                            <p class="m-0">${schoolSettings.city}, ${schoolSettings.cardIssueDate}</p>
+                            <p class="font-medium m-0">${schoolSettings.leaderType}</p>
+                            <div class="h-5 flex items-center justify-end my-0.5 relative">
+                                <img src="${schoolSettings.leaderSignature}" class="absolute bottom-0 right-0 max-h-5 object-contain" alt="">
+                            </div>
+                            <p class="font-bold text-emerald-900 underline truncate m-0">${schoolSettings.leaderName}</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            setTimeout(() => {
+                JsBarcode("#single-card-bc-svg", s.nis, {
+                    format: "CODE128",
+                    lineColor: "#0f172a",
+                    width: 1.1,
+                    height: 20,
+                    displayValue: true,
+                    fontSize: 8,
+                    margin: 0
+                });
+            }, 50);
+
+            document.getElementById('barcode-card-modal').classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function closeSingleCardModal() {
+            document.getElementById('barcode-card-modal').classList.add('hidden');
+        }
+
         function populateCardElement(s, isBulk, idx = "") {
             const bcId = isBulk ? `#bulk-bc-svg-${idx}` : `#student-barcode-svg`;
 
@@ -850,7 +981,11 @@
 
         function openBulkPrintModal() {
             const sel = document.getElementById('bulk-class-select');
-            sel.innerHTML = `<option value="Semua">Semua Kelas</option>` + defaultClasses.map(c => `<option value="${c}">${c}</option>`).join('');
+            const classes = getAvailableClasses();
+            sel.innerHTML = `<option value="Semua">Semua Kelas</option>` + classes.map(c => `<option value="${c}">${c}</option>`).join('');
+            if (appState.bulkPrintClass !== 'Semua' && !classes.includes(appState.bulkPrintClass)) {
+                appState.bulkPrintClass = 'Semua';
+            }
             sel.value = appState.bulkPrintClass;
             renderBulkCardsGrid();
             document.getElementById('bulk-print-modal').classList.remove('hidden');
@@ -908,7 +1043,10 @@
         // STUDENT CRUD
         // ==========================================
         function openStudentModal(id = null) {
-            document.getElementById('input-class').innerHTML = defaultClasses.map(c => `<option value="${c}">${c}</option>`).join('');
+            const datalist = document.getElementById('class-suggestions');
+            if (datalist) {
+                datalist.innerHTML = getAvailableClasses().map(c => `<option value="${c}">${c}</option>`).join('');
+            }
             const form = document.getElementById('student-form');
             form.reset();
             document.getElementById('input-photo-url').value = '';
@@ -968,6 +1106,7 @@
                 }
                 renderStudentsTable();
             }
+            updateClassDropdowns();
             closeStudentModal();
             updateStats();
             showToast('Data berhasil disimpan');
@@ -980,6 +1119,7 @@
                     loadInitialData();
                 } else {
                     mockStudents = mockStudents.filter(s => s.id != id);
+                    updateClassDropdowns();
                     renderStudentsTable();
                 }
                 showToast('Terhapus');
@@ -1120,6 +1260,7 @@
                         payloads.forEach(p => mockStudents.push({id: Date.now().toString()+Math.random(), ...p}));
                         renderStudentsTable();
                     }
+                    updateClassDropdowns();
                     showToast(`Impor ${payloads.length} siswa berhasil`);
                 } catch (err) {
                     console.error(err);
@@ -1128,6 +1269,23 @@
             };
             reader.readAsArrayBuffer(file);
             e.target.value = '';
+        }
+
+        function updateClassDropdowns() {
+            const classes = getAvailableClasses();
+            const clsOptions = `<option value="Semua">Semua Kelas</option>` + classes.map(c => `<option value="${c}">${c}</option>`).join('');
+            const logSel = document.getElementById('filter-class-log');
+            if (logSel) {
+                const cur = logSel.value;
+                logSel.innerHTML = clsOptions;
+                if (classes.includes(cur)) logSel.value = cur;
+            }
+            const recapSel = document.getElementById('filter-class-recap');
+            if (recapSel) {
+                const cur = recapSel.value;
+                recapSel.innerHTML = clsOptions;
+                if (classes.includes(cur)) recapSel.value = cur;
+            }
         }
 
         function exportExcel() {
@@ -1166,9 +1324,6 @@
 
         window.onload = function() {
             lucide.createIcons();
-            const clsOptions = `<option value="Semua">Semua Kelas</option>` + defaultClasses.map(c => `<option value="${c}">${c}</option>`).join('');
-            document.getElementById('filter-class-log').innerHTML = clsOptions;
-            document.getElementById('filter-class-recap').innerHTML = clsOptions;
             loadInitialData();
         };
     </script>
