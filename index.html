@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistem Absensi Barcode Madrasah</title>
     <link rel="icon" type="image/png" href="poto.png">
+    <meta name="author" content="Saprudin, S.Ag | Saproject.site">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -25,7 +26,7 @@
     <style>
         @page {
             size: A4 portrait;
-            margin: 10mm;
+            margin: 8mm 10mm;
         }
         
         .id-card-standard {
@@ -43,36 +44,136 @@
             flex-direction: column;
         }
 
+        /* Menghilangkan seluruh garis abu-abu di dalam kartu pelajar */
+        .id-card-standard hr,
+        .id-card-standard .border-slate-100,
+        .id-card-standard .border-slate-200 {
+            border: none !important;
+            border-color: transparent !important;
+        }
+
+        .a4-sheet-wrapper {
+            margin-bottom: 24px;
+        }
+
+        .a4-print-sheet {
+            display: grid;
+            grid-template-columns: repeat(2, 324px);
+            gap: 16px;
+            justify-content: center;
+            background: #f8fafc;
+            border: 1px dashed #cbd5e1;
+            border-radius: 16px;
+            padding: 16px;
+        }
+
+        @media (max-width: 768px) {
+            .a4-print-sheet {
+                grid-template-columns: 1fr;
+            }
+        }
+
         @media print {
+            html, body {
+                width: 100% !important;
+                height: auto !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                background: white !important;
+                overflow: visible !important;
+            }
+
             body * {
                 visibility: hidden;
             }
+
             #bulk-print-modal, #bulk-print-modal *, #barcode-card-modal, #barcode-card-modal * {
                 visibility: visible;
             }
+
             #bulk-print-modal, #barcode-card-modal {
-                position: absolute;
-                left: 0;
-                top: 0;
-                width: 100%;
+                position: absolute !important;
+                left: 0 !important;
+                top: 0 !important;
+                width: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
                 background: white !important;
+                overflow: visible !important;
+            }
+
+            /* Hilangkan padding dan box modal saat dicetak agar tidak makan tempat */
+            #bulk-print-modal > div {
+                max-width: 100% !important;
+                width: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                box-shadow: none !important;
+                border: none !important;
+                border-radius: 0 !important;
+                background: transparent !important;
+            }
+
+            #barcode-card-modal > div {
+                box-shadow: none !important;
+                border: none !important;
+                border-radius: 0 !important;
                 padding: 0 !important;
                 margin: 0 !important;
             }
-            #single-card-wrapper {
-                display: flex;
-                justify-content: center;
-                padding-top: 10mm;
-            }
-            #bulk-cards-grid {
-                display: grid;
-                grid-template-columns: repeat(2, 1fr);
-                gap: 6mm;
-                justify-content: center;
-                padding: 5mm;
-            }
+
             .no-print {
                 display: none !important;
+            }
+
+            /* Setiap sheet adalah 1 halaman fisik A4 penuh */
+            .a4-sheet-wrapper {
+                width: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                border: none !important;
+                background: transparent !important;
+                page-break-after: always !important;
+                break-after: page !important;
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+            }
+
+            .a4-sheet-wrapper:last-child {
+                page-break-after: auto !important;
+                break-after: auto !important;
+            }
+
+            .a4-print-sheet {
+                display: grid !important;
+                grid-template-columns: repeat(2, 85.6mm) !important;
+                grid-auto-rows: 54mm !important;
+                column-gap: 8mm !important;
+                row-gap: 5mm !important;
+                justify-content: center !important;
+                align-content: start !important;
+                margin: 0 auto !important;
+                padding: 0 !important;
+                border: none !important;
+                background: transparent !important;
+            }
+
+            .id-card-standard {
+                width: 85.6mm !important;
+                height: 54mm !important;
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+                box-sizing: border-box !important;
+                margin: 0 !important;
+                border: 1.5px solid #065f46 !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+
+            #single-card-wrapper {
+                display: flex !important;
+                justify-content: center !important;
+                padding-top: 15mm !important;
             }
         }
     </style>
@@ -97,6 +198,7 @@
         let schoolSettings = JSON.parse(localStorage.getItem('sensasi_settings')) || {
             institutionName: "LPP Al-Irsyad Al-Islamiyyah",
             subInstitutionName: "MI Al-Irsyad Al-Islamiyyah",
+            institutionLogo: "",
             city: "Banjarmasin",
             cardIssueDate: "15 Juli 2026",
             leaderType: "Kepala Madrasah",
@@ -490,7 +592,7 @@
             <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-6 max-w-2xl mx-auto">
                 <div class="border-b border-slate-100 pb-4">
                     <h3 class="text-lg font-bold text-slate-800">Identitas Sekolah & KOP Kartu Pelajar</h3>
-                    <p class="text-xs text-slate-500">Data ini akan dicetak pada seluruh ID Card siswa. Pastikan ukuran Tanda Tangan < 1MB.</p>
+                    <p class="text-xs text-slate-500">Data ini akan dicetak pada seluruh ID Card siswa. Pastikan ukuran Tanda Tangan & Logo < 1MB.</p>
                 </div>
 
                 <form onsubmit="saveSchoolSettings(event)" class="space-y-4">
@@ -501,6 +603,17 @@
                     <div>
                         <label class="block text-xs font-semibold text-slate-600 mb-1">Nama Madrasah / Sekolah</label>
                         <input type="text" id="set-sub-inst-name" required class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Logo Instansi KOP (Rasio 1:1, Maks 1 MB) / URL Link</label>
+                        <input type="file" id="set-logo-file" accept="image/*" onchange="handleLogoUpload(event)" class="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:bg-emerald-50 file:text-emerald-700 cursor-pointer">
+                        <input type="text" id="set-logo-url" placeholder="Atau paste URL logo..." oninput="document.getElementById('set-logo-img').src = this.value" class="w-full mt-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-emerald-500 outline-none">
+                    </div>
+                    <div class="pt-1">
+                        <p class="text-xs font-semibold text-slate-600 mb-1">Preview Logo (1:1):</p>
+                        <div class="w-14 h-14 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-center p-1 overflow-hidden">
+                            <img id="set-logo-img" src="" class="w-full h-full object-contain aspect-square" alt="">
+                        </div>
                     </div>
                     <div class="grid grid-cols-2 gap-4">
                         <div>
@@ -545,6 +658,19 @@
             </div>
         </div>
     </main>
+
+    <!-- Footer Developer Attribution -->
+    <footer class="no-print bg-emerald-950 text-emerald-300/80 text-xs py-3 border-t border-emerald-800/80 text-center flex-shrink-0">
+        <div class="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-1.5 text-[11px]">
+            <p>© 2026 Madrasah • Sistem Absensi Terpadu</p>
+            <p class="font-medium flex items-center gap-1.5">
+                <span>Developer:</span>
+                <span class="text-white font-bold">Saprudin, S.Ag</span>
+                <span class="text-emerald-500">|</span>
+                <a href="https://saproject.site" target="_blank" rel="noopener noreferrer" class="text-emerald-300 hover:text-white underline font-semibold transition-colors">Saproject.site</a>
+            </p>
+        </div>
+    </footer>
 
     <!-- MODAL: TAMBAH/EDIT SISWA -->
     <div id="student-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
@@ -638,13 +764,303 @@
                     <button onclick="closeBulkPrintModal()" class="bg-slate-100 text-slate-700 text-sm font-semibold px-4 py-2.5 rounded-xl cursor-pointer">Tutup</button>
                 </div>
             </div>
-            <!-- Grid untuk kartu ukuran pas -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-x-[6mm] gap-y-[6mm] justify-items-center" id="bulk-cards-grid">
+            <!-- Container Lembar A4 (Tiap Lembar Maksimal 8 Kartu) -->
+            <div id="bulk-cards-container" class="space-y-6">
             </div>
         </div>
     </div>
 
     <script>
+        function openBulkPrintModal() {
+            const sel = document.getElementById('bulk-class-select');
+            const classes = getAvailableClasses();
+            sel.innerHTML = `<option value="Semua">Semua Kelas</option>` + classes.map(c => `<option value="${c}">${c}</option>`).join('');
+            if (appState.bulkPrintClass !== 'Semua' && !classes.includes(appState.bulkPrintClass)) {
+                appState.bulkPrintClass = 'Semua';
+            }
+            sel.value = appState.bulkPrintClass;
+            renderBulkCardsGrid();
+            document.getElementById('bulk-print-modal').classList.remove('hidden');
+        }
+
+        function renderBulkCardsGrid() {
+            const cls = document.getElementById('bulk-class-select').value;
+            appState.bulkPrintClass = cls;
+            const list = cls === 'Semua' ? mockStudents : mockStudents.filter(s => s.class_name === cls);
+            const container = document.getElementById('bulk-cards-container');
+
+            if (list.length === 0) {
+                container.innerHTML = `<div class="py-12 text-center text-slate-400">Tidak ada siswa untuk dicetak pada kelas ini.</div>`;
+                return;
+            }
+
+            // Standar internasional cetak kartu ID-1 pada A4 portrait: 2 kolom x 4 baris = 8 kartu per halaman
+            const CARDS_PER_PAGE = 8;
+            const totalPages = Math.ceil(list.length / CARDS_PER_PAGE);
+
+            let html = '';
+            for (let pageIdx = 0; pageIdx < totalPages; pageIdx++) {
+                const start = pageIdx * CARDS_PER_PAGE;
+                const pageCards = list.slice(start, start + CARDS_PER_PAGE);
+
+                html += `
+                    <div class="a4-sheet-wrapper">
+                        <div class="no-print flex items-center justify-between text-xs font-semibold text-slate-500 mb-2 px-1">
+                            <span class="flex items-center gap-1.5 text-indigo-700 font-bold">
+                                <i data-lucide="file-text" class="w-4 h-4"></i> Lembar A4 #${pageIdx + 1} (${pageCards.length} Kartu)
+                            </span>
+                            <span class="text-[11px] text-slate-400">Kapasitas Maksimal 8 Kartu per Lembar A4</span>
+                        </div>
+                        <div class="a4-print-sheet">
+                            ${pageCards.map((s, idxInPage) => {
+                                const globalIdx = start + idxInPage;
+                                return `
+                                <div class="id-card-standard relative">
+                                    <div class="bg-emerald-800 text-white py-1 px-2 rounded-[8px] flex items-center justify-center gap-2 w-full shadow-sm flex-shrink-0">
+                                        ${schoolSettings.institutionLogo ? `<img src="${schoolSettings.institutionLogo}" class="w-6 h-6 object-contain aspect-square rounded-sm flex-shrink-0" alt="Logo">` : ''}
+                                        <div class="text-center flex-1 min-w-0">
+                                            <h5 class="font-extrabold text-[10px] tracking-wider uppercase m-0 leading-tight truncate">${schoolSettings.institutionName.toUpperCase()}</h5>
+                                            <p class="text-[9px] text-emerald-100 font-medium m-0 leading-tight truncate">${schoolSettings.subInstitutionName}</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="text-center my-0.5 flex-shrink-0">
+                                        <span class="text-[9px] font-bold text-slate-500 tracking-widest uppercase px-3 pb-0.5 inline-block">KARTU PELAJAR</span>
+                                    </div>
+                                    
+                                    <div class="flex items-start gap-2.5 mt-1 flex-1 min-h-0 pb-1">
+                                        <img src="${s.photo}" class="w-[60px] h-[80px] rounded-lg object-cover border border-emerald-600 shadow-sm flex-shrink-0 bg-emerald-50">
+                                        <div class="overflow-hidden space-y-0.5 text-left text-[11px] leading-tight pt-1">
+                                            <h4 class="font-bold text-slate-800 text-xs truncate">${s.name}</h4>
+                                            <p class="font-mono font-semibold text-emerald-800 text-[10px]">NIS: ${s.nis}</p>
+                                            <p class="text-slate-600 text-[10px]">Jenis Kelamin: ${s.gender === 'L' ? 'Laki-laki' : 'Perempuan'}</p>
+                                            <p class="text-slate-600 text-[10px] line-clamp-2 leading-tight">Alamat: ${s.address}</p>
+                                        </div>
+                                    </div>
+
+                                    <div class="flex justify-between items-end pt-1 mt-auto flex-shrink-0" style="height: 48px;">
+                                        <div class="w-1/2 flex flex-col justify-end pb-0.5">
+                                            <svg id="bulk-bc-svg-${globalIdx}" class="w-full" style="height: 20px; max-width: 140px;"></svg>
+                                        </div>
+                                        <div class="w-1/2 text-center text-[8px] text-slate-700 leading-tight flex flex-col justify-end items-center">
+                                            <p class="m-0">${schoolSettings.city}, ${schoolSettings.cardIssueDate}</p>
+                                            <p class="font-medium m-0">${schoolSettings.leaderType}</p>
+                                            <div class="h-5 flex items-center justify-center my-0.5 w-full">
+                                                ${schoolSettings.leaderSignature ? `<img src="${schoolSettings.leaderSignature}" class="max-h-5 max-w-full object-contain mx-auto" alt="">` : ''}
+                                            </div>
+                                            <p class="font-bold text-emerald-900 underline truncate m-0">${schoolSettings.leaderName}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            container.innerHTML = html;
+            lucide.createIcons();
+            list.forEach((s, i) => populateCardElement(s, true, i));
+        }
+
+        function closeBulkPrintModal() { document.getElementById('bulk-print-modal').classList.add('hidden'); }
+
+        // ==========================================
+        // STUDENT CRUD & MODALS
+        // ==========================================
+        function populateCardElement(student, isBulk = false, idx = 0) {
+            const svgId = isBulk ? `#bulk-bc-svg-${idx}` : '#single-bc-svg';
+            try {
+                if (student && student.nis && document.querySelector(svgId)) {
+                    JsBarcode(svgId, student.nis, {
+                        format: "CODE128",
+                        width: 1.2,
+                        height: 20,
+                        displayValue: true,
+                        fontSize: 8,
+                        margin: 0
+                    });
+                }
+            } catch (e) {
+                console.error("Gagal generate barcode:", e);
+            }
+        }
+
+        function openSingleCardModal(id) {
+            const student = mockStudents.find(s => s.id == id);
+            if (!student) return;
+
+            const wrapper = document.getElementById('single-card-wrapper');
+            wrapper.innerHTML = `
+                <div class="id-card-standard relative">
+                    <div class="bg-emerald-800 text-white py-1 px-2 rounded-[8px] flex items-center justify-center gap-2 w-full shadow-sm flex-shrink-0">
+                        ${schoolSettings.institutionLogo ? `<img src="${schoolSettings.institutionLogo}" class="w-6 h-6 object-contain aspect-square rounded-sm flex-shrink-0" alt="Logo">` : ''}
+                        <div class="text-center flex-1 min-w-0">
+                            <h5 class="font-extrabold text-[10px] tracking-wider uppercase m-0 leading-tight truncate">${schoolSettings.institutionName.toUpperCase()}</h5>
+                            <p class="text-[9px] text-emerald-100 font-medium m-0 leading-tight truncate">${schoolSettings.subInstitutionName}</p>
+                        </div>
+                    </div>
+                    
+                    <div class="text-center my-0.5 flex-shrink-0">
+                        <span class="text-[9px] font-bold text-slate-500 tracking-widest uppercase px-3 pb-0.5 inline-block">KARTU PELAJAR</span>
+                    </div>
+                    
+                    <div class="flex items-start gap-2.5 mt-1 flex-1 min-h-0 pb-1">
+                        <img src="${student.photo || `https://placehold.co/120x160/047857/ffffff?text=${student.name.charAt(0)}`}" class="w-[60px] h-[80px] rounded-lg object-cover border border-emerald-600 shadow-sm flex-shrink-0 bg-emerald-50">
+                        <div class="overflow-hidden space-y-0.5 text-left text-[11px] leading-tight pt-1">
+                            <h4 class="font-bold text-slate-800 text-xs truncate">${student.name}</h4>
+                            <p class="font-mono font-semibold text-emerald-800 text-[10px]">NIS: ${student.nis}</p>
+                            <p class="text-slate-600 text-[10px]">Jenis Kelamin: ${student.gender === 'L' ? 'Laki-laki' : 'Perempuan'}</p>
+                            <p class="text-slate-600 text-[10px] line-clamp-2 leading-tight">Alamat: ${student.address || '-'}</p>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-between items-end pt-1 mt-auto flex-shrink-0" style="height: 48px;">
+                        <div class="w-1/2 flex flex-col justify-end pb-0.5">
+                            <svg id="single-bc-svg" class="w-full" style="height: 20px; max-width: 140px;"></svg>
+                        </div>
+                        <div class="w-1/2 text-center text-[8px] text-slate-700 leading-tight flex flex-col justify-end items-center">
+                            <p class="m-0">${schoolSettings.city}, ${schoolSettings.cardIssueDate}</p>
+                            <p class="font-medium m-0">${schoolSettings.leaderType}</p>
+                            <div class="h-5 flex items-center justify-center my-0.5 w-full">
+                                ${schoolSettings.leaderSignature ? `<img src="${schoolSettings.leaderSignature}" class="max-h-5 max-w-full object-contain mx-auto" alt="">` : ''}
+                            </div>
+                            <p class="font-bold text-emerald-900 underline truncate m-0">${schoolSettings.leaderName}</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.getElementById('barcode-card-modal').classList.remove('hidden');
+            populateCardElement(student, false);
+            lucide.createIcons();
+        }
+
+        function closeSingleCardModal() {
+            document.getElementById('barcode-card-modal').classList.add('hidden');
+        }
+
+        function openStudentModal(id = null) {
+            const modal = document.getElementById('student-modal');
+            const form = document.getElementById('student-form');
+            form.reset();
+            document.getElementById('student-edit-id').value = '';
+            
+            const suggestions = document.getElementById('class-suggestions');
+            if (suggestions) {
+                suggestions.innerHTML = getAvailableClasses().map(c => `<option value="${c}">`).join('');
+            }
+
+            if (id) {
+                document.getElementById('modal-title').innerText = 'Edit Data Siswa';
+                const student = mockStudents.find(s => s.id == id);
+                if (student) {
+                    document.getElementById('student-edit-id').value = student.id;
+                    document.getElementById('input-nis').value = student.nis;
+                    document.getElementById('input-name').value = student.name;
+                    document.getElementById('input-class').value = student.class_name;
+                    document.getElementById('input-gender').value = student.gender || 'L';
+                    document.getElementById('input-address').value = student.address || '';
+                    document.getElementById('input-photo-url').value = student.photo || '';
+                }
+            } else {
+                document.getElementById('modal-title').innerText = 'Tambah Siswa Baru';
+            }
+            modal.classList.remove('hidden');
+        }
+
+        function closeStudentModal() {
+            document.getElementById('student-modal').classList.add('hidden');
+        }
+
+        function handleStudentPhotoUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            if (file.size > 1048576) {
+                showToast('Ukuran foto maksimal 1MB!', 'error');
+                e.target.value = '';
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                document.getElementById('input-photo-url').value = ev.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        async function handleSaveStudent(e) {
+            e.preventDefault();
+            const editId = document.getElementById('student-edit-id').value;
+            const nis = document.getElementById('input-nis').value.trim();
+            const name = document.getElementById('input-name').value.trim();
+            const className = document.getElementById('input-class').value.trim();
+            const gender = document.getElementById('input-gender').value;
+            const address = document.getElementById('input-address').value.trim();
+            let photo = document.getElementById('input-photo-url').value.trim();
+
+            if (!photo) {
+                photo = `https://placehold.co/120x160/047857/ffffff?text=${name.charAt(0)}`;
+            }
+
+            const duplicate = mockStudents.find(s => s.nis.toLowerCase() === nis.toLowerCase() && s.id != editId);
+            if (duplicate) {
+                showToast(`NIS (${nis}) sudah terdaftar untuk siswa lain!`, 'error');
+                return;
+            }
+
+            const payload = {
+                nis,
+                name,
+                class_name: className,
+                gender,
+                address,
+                photo
+            };
+
+            if (editId) {
+                if (!is_preview && supabaseClient) {
+                    try {
+                        const { error } = await supabaseClient.from('students').update(payload).eq('id', editId);
+                        if (error) throw error;
+                        await loadInitialData();
+                    } catch (err) {
+                        console.error(err);
+                        showToast('Gagal update data di database', 'error');
+                        return;
+                    }
+                } else {
+                    const idx = mockStudents.findIndex(s => s.id == editId);
+                    if (idx !== -1) {
+                        mockStudents[idx] = { ...mockStudents[idx], ...payload };
+                    }
+                }
+                showToast('Data siswa berhasil diperbarui', 'success');
+            } else {
+                if (!is_preview && supabaseClient) {
+                    try {
+                        const { error } = await supabaseClient.from('students').insert([payload]);
+                        if (error) throw error;
+                        await loadInitialData();
+                    } catch (err) {
+                        console.error(err);
+                        showToast('Gagal menyimpan siswa ke database', 'error');
+                        return;
+                    }
+                } else {
+                    mockStudents.push({
+                        id: Date.now().toString(),
+                        ...payload
+                    });
+                }
+                showToast('Siswa baru berhasil ditambahkan', 'success');
+            }
+
+            updateClassDropdowns();
+            renderStudentsTable();
+            closeStudentModal();
+            updateStats();
+        }
+
         // ==========================================
         // UTILITIES & UI LOGIC
         // ==========================================
@@ -838,7 +1254,7 @@
 
             if (!studentDataUnlocked) {
                 actionBtns.classList.add('hidden');
-                container.innerHTML = `<div class="py-16 text-center text-slate-500 bg-slate-50 border border-dashed rounded-2xl"><i data-lucide="shield" class="w-8 h-8 mx-auto mb-2 text-slate-400"></i><p>Data dikunci oleh ADMIN.</p></div>`;
+                container.innerHTML = `<div class="py-16 text-center text-slate-500 bg-slate-50 border border-dashed rounded-2xl"><i data-lucide="shield" class="w-8 h-8 mx-auto mb-2 text-slate-400"></i><p>Hanya Depelover yang tahu .</p></div>`;
                 lucide.createIcons();
                 return;
             }
@@ -899,231 +1315,16 @@
             renderStudentsTable();
         }
 
-        // ==========================================
-        // ID CARD & BULK PRINTING
-        // ==========================================
-        function openSingleCardModal(id) {
-            const s = mockStudents.find(x => x.id == id);
-            if (!s) return;
-            const container = document.getElementById('single-card-wrapper');
-            container.innerHTML = `
-                <div class="id-card-standard relative shadow-md mx-auto">
-                    <div class="bg-emerald-800 text-white py-1 px-2 rounded-[8px] text-center w-full shadow-sm flex-shrink-0">
-                        <h5 class="font-extrabold text-[10px] tracking-wider uppercase m-0 leading-tight">${schoolSettings.institutionName.toUpperCase()}</h5>
-                        <p class="text-[9px] text-emerald-100 font-medium m-0 leading-tight">${schoolSettings.subInstitutionName}</p>
-                    </div>
-                    
-                    <div class="text-center my-0.5 flex-shrink-0">
-                        <span class="text-[9px] font-bold text-slate-500 tracking-widest uppercase border-b border-slate-200 px-3 pb-0.5 inline-block">KARTU PELAJAR</span>
-                    </div>
-                    
-                    <div class="flex items-start gap-2.5 mt-1 flex-1 min-h-0 pb-1">
-                        <img src="${s.photo}" class="w-[60px] h-[80px] rounded-lg object-cover border border-emerald-600 shadow-sm flex-shrink-0 bg-emerald-50">
-                        <div class="overflow-hidden space-y-0.5 text-left text-[11px] leading-tight pt-1">
-                            <h4 class="font-bold text-slate-800 text-xs truncate">${s.name}</h4>
-                            <p class="font-mono font-semibold text-emerald-800 text-[10px]">NIS: ${s.nis}</p>
-                            <p class="text-slate-600 text-[10px]">Gender: ${s.gender === 'L' ? 'Laki-laki' : 'Perempuan'}</p>
-                            <p class="text-slate-600 text-[10px] line-clamp-2 leading-tight">Alamat: ${s.address}</p>
-                        </div>
-                    </div>
-
-                    <div class="flex justify-between items-end pt-1 border-t border-slate-100 mt-auto flex-shrink-0" style="height: 48px;">
-                        <div class="w-1/2 flex flex-col justify-end pb-0.5">
-                            <svg id="single-card-bc-svg" class="w-full" style="height: 20px; max-width: 140px;"></svg>
-                        </div>
-                        <div class="w-1/2 text-right text-[8px] text-slate-700 leading-tight flex flex-col justify-end">
-                            <p class="m-0">${schoolSettings.city}, ${schoolSettings.cardIssueDate}</p>
-                            <p class="font-medium m-0">${schoolSettings.leaderType}</p>
-                            <div class="h-5 flex items-center justify-end my-0.5 relative">
-                                <img src="${schoolSettings.leaderSignature}" class="absolute bottom-0 right-0 max-h-5 object-contain" alt="">
-                            </div>
-                            <p class="font-bold text-emerald-900 underline truncate m-0">${schoolSettings.leaderName}</p>
-                        </div>
-                    </div>
-                </div>
-            `;
-            
-            setTimeout(() => {
-                JsBarcode("#single-card-bc-svg", s.nis, {
-                    format: "CODE128",
-                    lineColor: "#0f172a",
-                    width: 1.1,
-                    height: 20,
-                    displayValue: true,
-                    fontSize: 8,
-                    margin: 0
-                });
-            }, 50);
-
-            document.getElementById('barcode-card-modal').classList.remove('hidden');
-            lucide.createIcons();
-        }
-
-        function closeSingleCardModal() {
-            document.getElementById('barcode-card-modal').classList.add('hidden');
-        }
-
-        function populateCardElement(s, isBulk, idx = "") {
-            const bcId = isBulk ? `#bulk-bc-svg-${idx}` : `#student-barcode-svg`;
-
-            setTimeout(() => {
-                JsBarcode(bcId, s.nis, {
-                    format: "CODE128",
-                    lineColor: "#0f172a",
-                    width: 1.1,
-                    height: 20,
-                    displayValue: true,
-                    fontSize: 8,
-                    margin: 0
-                });
-            }, 50);
-        }
-
-        function openBulkPrintModal() {
-            const sel = document.getElementById('bulk-class-select');
-            const classes = getAvailableClasses();
-            sel.innerHTML = `<option value="Semua">Semua Kelas</option>` + classes.map(c => `<option value="${c}">${c}</option>`).join('');
-            if (appState.bulkPrintClass !== 'Semua' && !classes.includes(appState.bulkPrintClass)) {
-                appState.bulkPrintClass = 'Semua';
-            }
-            sel.value = appState.bulkPrintClass;
-            renderBulkCardsGrid();
-            document.getElementById('bulk-print-modal').classList.remove('hidden');
-        }
-
-        function renderBulkCardsGrid() {
-            const cls = document.getElementById('bulk-class-select').value;
-            appState.bulkPrintClass = cls;
-            const list = cls === 'Semua' ? mockStudents : mockStudents.filter(s => s.class_name === cls);
-            const grid = document.getElementById('bulk-cards-grid');
-
-            grid.innerHTML = list.map((s, i) => `
-                <div class="id-card-standard relative">
-                    <div class="bg-emerald-800 text-white py-1 px-2 rounded-[8px] text-center w-full shadow-sm flex-shrink-0">
-                        <h5 class="font-extrabold text-[10px] tracking-wider uppercase m-0 leading-tight">${schoolSettings.institutionName.toUpperCase()}</h5>
-                        <p class="text-[9px] text-emerald-100 font-medium m-0 leading-tight">${schoolSettings.subInstitutionName}</p>
-                    </div>
-                    
-                    <div class="text-center my-0.5 flex-shrink-0">
-                        <span class="text-[9px] font-bold text-slate-500 tracking-widest uppercase border-b border-slate-200 px-3 pb-0.5 inline-block">KARTU PELAJAR</span>
-                    </div>
-                    
-                    <div class="flex items-start gap-2.5 mt-1 flex-1 min-h-0 pb-1">
-                        <img src="${s.photo}" class="w-[60px] h-[80px] rounded-lg object-cover border border-emerald-600 shadow-sm flex-shrink-0 bg-emerald-50">
-                        <div class="overflow-hidden space-y-0.5 text-left text-[11px] leading-tight pt-1">
-                            <h4 class="font-bold text-slate-800 text-xs truncate">${s.name}</h4>
-                            <p class="font-mono font-semibold text-emerald-800 text-[10px]">NIS: ${s.nis}</p>
-                            <p class="text-slate-600 text-[10px]">Gender: ${s.gender === 'L' ? 'Laki-laki' : 'Perempuan'}</p>
-                            <p class="text-slate-600 text-[10px] line-clamp-2 leading-tight">Alamat: ${s.address}</p>
-                        </div>
-                    </div>
-
-                    <div class="flex justify-between items-end pt-1 border-t border-slate-100 mt-auto flex-shrink-0" style="height: 48px;">
-                        <div class="w-1/2 flex flex-col justify-end pb-0.5">
-                            <svg id="bulk-bc-svg-${i}" class="w-full" style="height: 20px; max-width: 140px;"></svg>
-                        </div>
-                        <div class="w-1/2 text-right text-[8px] text-slate-700 leading-tight flex flex-col justify-end">
-                            <p class="m-0">${schoolSettings.city}, ${schoolSettings.cardIssueDate}</p>
-                            <p class="font-medium m-0">${schoolSettings.leaderType}</p>
-                            <div class="h-5 flex items-center justify-end my-0.5 relative">
-                                <img src="${schoolSettings.leaderSignature}" class="absolute bottom-0 right-0 max-h-5 object-contain" alt="">
-                            </div>
-                            <p class="font-bold text-emerald-900 underline truncate m-0">${schoolSettings.leaderName}</p>
-                        </div>
-                    </div>
-                </div>
-            `).join('');
-
-            list.forEach((s, i) => populateCardElement(s, true, i));
-        }
-
-        function closeBulkPrintModal() { document.getElementById('bulk-print-modal').classList.add('hidden'); }
-
-        // ==========================================
-        // STUDENT CRUD
-        // ==========================================
-        function openStudentModal(id = null) {
-            const datalist = document.getElementById('class-suggestions');
-            if (datalist) {
-                datalist.innerHTML = getAvailableClasses().map(c => `<option value="${c}">${c}</option>`).join('');
-            }
-            const form = document.getElementById('student-form');
-            form.reset();
-            document.getElementById('input-photo-url').value = '';
-            
-            if (id) {
-                const s = mockStudents.find(x => x.id == id);
-                document.getElementById('student-edit-id').value = s.id;
-                document.getElementById('input-nis').value = s.nis;
-                document.getElementById('input-name').value = s.name;
-                document.getElementById('input-class').value = s.class_name;
-                document.getElementById('input-gender').value = s.gender;
-                document.getElementById('input-address').value = s.address;
-                document.getElementById('input-photo-url').value = s.photo;
+        async function deleteStudent(id) {
+            if(!is_preview && supabaseClient) {
+                await supabaseClient.from('students').delete().eq('id', id);
+                loadInitialData();
             } else {
-                document.getElementById('student-edit-id').value = '';
-            }
-            document.getElementById('student-modal').classList.remove('hidden');
-        }
-        function closeStudentModal() { document.getElementById('student-modal').classList.add('hidden'); }
-
-        function handleStudentPhotoUpload(e) {
-            const f = e.target.files[0];
-            if(!f) return;
-            if(f.size > 1048576) { showToast('Ukuran maksimal 1MB', 'error'); e.target.value=''; return; }
-            const reader = new FileReader();
-            reader.onload = (ev) => document.getElementById('input-photo-url').value = ev.target.result;
-            reader.readAsDataURL(f);
-        }
-
-        async function handleSaveStudent(e) {
-            e.preventDefault();
-            const id = document.getElementById('student-edit-id').value;
-            const nis = document.getElementById('input-nis').value;
-            const name = document.getElementById('input-name').value;
-            const cls = document.getElementById('input-class').value;
-            const gender = document.getElementById('input-gender').value;
-            const address = document.getElementById('input-address').value;
-            let photo = document.getElementById('input-photo-url').value.trim();
-            if(!photo) photo = `https://placehold.co/120x160/047857/ffffff?text=${name.charAt(0)}`;
-
-            const payload = { nis, name, class_name: cls, gender, address, photo };
-
-            if (!is_preview && supabaseClient) {
-                if (id) {
-                    await supabaseClient.from('students').update(payload).eq('id', id);
-                } else {
-                    await supabaseClient.from('students').insert([payload]);
-                }
-                loadInitialData(); // reload
-            } else {
-                // Mock update
-                if(id) {
-                    const idx = mockStudents.findIndex(x => x.id == id);
-                    mockStudents[idx] = { ...mockStudents[idx], ...payload };
-                } else {
-                    mockStudents.push({ id: Date.now().toString(), ...payload });
-                }
+                mockStudents = mockStudents.filter(s => s.id != id);
+                updateClassDropdowns();
                 renderStudentsTable();
             }
-            updateClassDropdowns();
-            closeStudentModal();
-            updateStats();
-            showToast('Data berhasil disimpan');
-        }
-
-        async function deleteStudent(id) {
-            if(confirm('Hapus siswa ini?')) {
-                if(!is_preview && supabaseClient) {
-                    await supabaseClient.from('students').delete().eq('id', id);
-                    loadInitialData();
-                } else {
-                    mockStudents = mockStudents.filter(s => s.id != id);
-                    updateClassDropdowns();
-                    renderStudentsTable();
-                }
-                showToast('Terhapus');
-            }
+            showToast('Siswa berhasil dihapus', 'info');
         }
 
         // ==========================================
@@ -1132,12 +1333,26 @@
         function loadSettingsForm() {
             document.getElementById('set-inst-name').value = schoolSettings.institutionName;
             document.getElementById('set-sub-inst-name').value = schoolSettings.subInstitutionName;
+            document.getElementById('set-logo-img').src = schoolSettings.institutionLogo || '';
+            document.getElementById('set-logo-url').value = schoolSettings.institutionLogo || '';
             document.getElementById('set-city').value = schoolSettings.city;
             document.getElementById('set-card-date').value = schoolSettings.cardIssueDate;
             document.getElementById('set-leader-type').value = schoolSettings.leaderType;
             document.getElementById('set-leader-name').value = schoolSettings.leaderName;
             document.getElementById('set-sig-img').src = schoolSettings.leaderSignature || '';
             document.getElementById('set-sig-url').value = schoolSettings.leaderSignature || '';
+        }
+
+        function handleLogoUpload(e) {
+            const f = e.target.files[0];
+            if(!f) return;
+            if(f.size > 1048576) { showToast('Ukuran logo maksimal 1MB!', 'error'); e.target.value=''; return; }
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                document.getElementById('set-logo-url').value = ev.target.result;
+                document.getElementById('set-logo-img').src = ev.target.result;
+            };
+            reader.readAsDataURL(f);
         }
 
         function handleSignatureUpload(e) {
@@ -1157,6 +1372,7 @@
             schoolSettings = {
                 institutionName: document.getElementById('set-inst-name').value,
                 subInstitutionName: document.getElementById('set-sub-inst-name').value,
+                institutionLogo: document.getElementById('set-logo-url').value,
                 city: document.getElementById('set-city').value,
                 cardIssueDate: document.getElementById('set-card-date').value,
                 leaderType: document.getElementById('set-leader-type').value,
@@ -1198,7 +1414,7 @@
         // ==========================================
         function downloadTemplateExcel() {
             const templateData = [
-                { "NIS": "20240705", "Nama Lengkap": "Siswa Contoh", "Kelas": "VII-A (MTs)", "Gender (L/P)": "L", "Alamat": "Jl. Contoh 123" }
+                { "NIS": "20240705", "Nama Lengkap": "Siswa Contoh", "Kelas": "VII-A (MTs)", "Jenis Kelamin (L/P)": "L", "Alamat": "Jl. Contoh 123" }
             ];
             const ws = XLSX.utils.json_to_sheet(templateData);
             const wb = XLSX.utils.book_new();
@@ -1232,7 +1448,7 @@
                         const nis = row['NIS'] || row['nis'];
                         const name = row['Nama Lengkap'] || row['nama'] || row['name'];
                         const cls = row['Kelas'] || row['kelas'] || row['class_name'] || 'VII-A (MTs)';
-                        const gender = row['Gender (L/P)'] || row['gender'] || row['jk'] || 'L';
+                        const gender = row['Jenis Kelamin (L/P)'] || row['Jenis Kelamin'] || row['Gender (L/P)'] || row['gender'] || row['jk'] || 'L';
                         const address = row['Alamat'] || row['alamat'] || row['address'] || '-';
 
                         if(nis && name) {
