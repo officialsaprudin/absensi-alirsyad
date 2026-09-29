@@ -1,0 +1,1360 @@
+<!DOCTYPE html>
+<html lang="id" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SENSASI - Sistem Absensi Barcode Madrasah</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        emerald: { 700: '#047857', 800: '#065f46', 900: '#064e3b' }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            #bulk-print-modal, #bulk-print-modal *, #barcode-card-modal, #barcode-card-modal * {
+                visibility: visible;
+            }
+            #bulk-print-modal {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                background: white !important;
+                padding: 0 !important;
+            }
+            .no-print {
+                display: none !important;
+            }
+        }
+    </style>
+</head>
+<body class="h-full bg-slate-50 text-slate-800 font-sans antialiased flex flex-col">
+
+    <script>
+        const is_preview = true;
+        
+        let SUPABASE_URL = "https://your-project.supabase.co";
+        let SUPABASE_ANON_KEY = "your-anon-key";
+        let supabaseClient = null;
+
+        if (!is_preview && SUPABASE_URL && SUPABASE_ANON_KEY && SUPABASE_URL !== "https://your-project.supabase.co") {
+            supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        }
+
+        const defaultClasses = ["VII-A (MTs)", "VII-B (MTs)", "VIII-A (MTs)", "VIII-B (MTs)", "IX-A (MTs)", "IX-B (MTs)"];
+        
+        let mockStudents = [
+            { id: 1, nis: "20240701", name: "Ahmad Fauzan Al-Ghifari", class_name: "VII-A (MTs)", gender: "L", photo: "https://placehold.co/150x150/047857/ffffff?text=FA" },
+            { id: 2, nis: "20240702", name: "Siti Aisyah Azzahra", class_name: "VII-A (MTs)", gender: "P", photo: "https://placehold.co/150x150/059669/ffffff?text=SA" },
+            { id: 3, nis: "20240703", name: "Muhammad Rizki Ramadhan", class_name: "VII-B (MTs)", gender: "L", photo: "https://placehold.co/150x150/10b981/ffffff?text=MR" },
+            { id: 4, nis: "20240801", name: "Fatimah Zahra", class_name: "VIII-A (MTs)", gender: "P", photo: "https://placehold.co/150x150/047857/ffffff?text=FZ" },
+            { id: 5, nis: "20240901", name: "Umar Faruq", class_name: "IX-A (MTs)", gender: "L", photo: "https://placehold.co/150x150/065f46/ffffff?text=UF" }
+        ];
+
+        let mockAttendance = [
+            { id: 101, student_id: 1, nis: "20240701", name: "Ahmad Fauzan Al-Ghifari", class_name: "VII-A (MTs)", timestamp: new Date(Date.now() - 3600000).toLocaleTimeString(), date_str: new Date().toDateString(), status: "Hadir", type: "Masuk" },
+            { id: 102, student_id: 2, nis: "20240702", name: "Siti Aisyah Azzahra", class_name: "VII-A (MTs)", timestamp: new Date(Date.now() - 7200000).toLocaleTimeString(), date_str: new Date().toDateString(), status: "Sakit", type: "Masuk" },
+            { id: 103, student_id: 3, nis: "20240703", name: "Muhammad Rizki Ramadhan", class_name: "VII-B (MTs)", timestamp: new Date(Date.now() - 10800000).toLocaleTimeString(), date_str: new Date().toDateString(), status: "Izin", type: "Masuk" }
+        ];
+
+        let appState = {
+            currentTab: 'scanner',
+            selectedClassFilter: 'Semua',
+            scannedStudent: null,
+            barcodeBuffer: '',
+            cameraActive: false
+        };
+
+        let studentDataUnlocked = false;
+        let spacebarCount = 0;
+        let spacebarTimer = null;
+
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' && !['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement.tagName)) {
+                e.preventDefault();
+                spacebarCount++;
+                clearTimeout(spacebarTimer);
+                spacebarTimer = setTimeout(() => {
+                    spacebarCount = 0;
+                }, 1000);
+
+                if (spacebarCount >= 3) {
+                    spacebarCount = 0;
+                    studentDataUnlocked = !studentDataUnlocked;
+                    if (studentDataUnlocked) {
+                        showToast('🔓 Data Siswa Berhasil Dibuka!', 'success');
+                    } else {
+                        showToast('🔒 Data Siswa Dikunci Kembali.', 'info');
+                    }
+                    if (appState.currentTab === 'students') {
+                        renderStudentsTable();
+                    }
+                }
+            }
+        });
+    </script>
+    
+    <div id="toast-container" class="fixed top-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <div id="fullscreen-overlay" class="fixed inset-0 bg-emerald-950/95 backdrop-blur-md z-[100] hidden flex flex-col items-center justify-center p-6 text-center text-white transition-all duration-300">
+        <div class="absolute top-6 right-6">
+            <button onclick="closeFullscreenOverlay()" class="bg-emerald-900/80 hover:bg-emerald-800 text-emerald-100 p-3 rounded-full transition shadow-lg flex items-center justify-center cursor-pointer">
+                <i data-lucide="x" class="w-8 h-8"></i>
+            </button>
+        </div>
+        <div class="max-w-2xl w-full bg-emerald-900/70 border border-emerald-500/40 rounded-3xl p-8 sm:p-12 shadow-2xl flex flex-col items-center space-y-6 animate-in fade-in zoom-in duration-200">
+            <div class="inline-flex items-center gap-2 bg-emerald-600 text-emerald-50 px-6 py-2.5 rounded-full font-bold text-base shadow-lg animate-pulse">
+                <i data-lucide="check-circle-2" class="w-6 h-6"></i> ABSENSI BERHASIL - HADIR
+            </div>
+            <img id="fs-photo" src="" alt="Foto Siswa" class="w-48 h-48 sm:w-56 sm:h-56 rounded-3xl object-cover border-4 border-emerald-400 shadow-2xl bg-emerald-800">
+            <div class="space-y-2">
+                <h2 id="fs-name" class="text-3xl sm:text-5xl font-extrabold tracking-tight text-white">Nama Siswa</h2>
+                <p id="fs-class-nis" class="text-xl text-emerald-200 font-medium">Kelas VII-A • NIS: 20240701</p>
+            </div>
+            <div class="bg-emerald-950/90 border border-emerald-800/80 rounded-2xl p-4 w-full flex justify-around text-emerald-100 text-sm sm:text-base">
+                <div><span class="text-emerald-400 block text-xs uppercase tracking-wider">Waktu Masuk</span> <span id="fs-time" class="font-bold text-lg">07:30:15</span></div>
+                <div><span class="text-emerald-400 block text-xs uppercase tracking-wider">Status</span> <span class="font-bold text-lg text-emerald-300">Tepat Waktu</span></div>
+            </div>
+            <p class="text-xs text-emerald-400 pt-1">Layar akan tertutup otomatis dalam 4 detik untuk pemindaian berikutnya...</p>
+        </div>
+    </div>
+
+    <header class="bg-emerald-900 text-white shadow-md">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-4">
+            <div class="flex items-center space-x-3">
+                <div class="bg-emerald-700 p-2 rounded-xl shadow-inner">
+                    <i data-lucide="scan-line" class="w-7 h-7 text-emerald-100"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight">SENSASI MADRASAH</h1>
+                    <p class="text-xs text-emerald-200">Sistem Absensi Barcode (NIS) & Manajemen Kelas Terpadu</p>
+                </div>
+            </div>
+
+            <nav class="flex items-center space-x-1 sm:space-x-2 overflow-x-auto py-1">
+                <button onclick="switchTab('scanner')" id="nav-scanner" class="px-3 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2 bg-emerald-800 text-white shadow">
+                    <i data-lucide="scan" class="w-4 h-4"></i> Live Scanner
+                </button>
+                <button onclick="switchTab('students')" id="nav-students" class="px-3 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2 text-emerald-100 hover:bg-emerald-800">
+                    <i data-lucide="users" class="w-4 h-4"></i> Data Siswa
+                </button>
+                <button onclick="switchTab('attendance')" id="nav-attendance" class="px-3 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2 text-emerald-100 hover:bg-emerald-800">
+                    <i data-lucide="clipboard-list" class="w-4 h-4"></i> Rekap Absen (H,S,I,A)
+                </button>
+                <button onclick="switchTab('schema')" id="nav-schema" class="px-3 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2 text-emerald-100 hover:bg-emerald-800">
+                    <i data-lucide="database" class="w-4 h-4"></i> SQL Schema
+                </button>
+                <button onclick="switchTab('deploy')" id="nav-deploy" class="px-3 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2 text-emerald-100 hover:bg-emerald-800">
+                    <i data-lucide="rocket" class="w-4 h-4"></i> Deploy Guide
+                </button>
+            </nav>
+        </div>
+    </header>
+
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 overflow-y-auto">
+
+        <!-- TAB 1: LIVE SCANNER -->
+        <div id="tab-scanner" class="space-y-6">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                <div class="lg:col-span-1 bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col items-center justify-between text-center relative overflow-hidden">
+                    <div class="absolute top-0 left-0 w-full h-2 bg-emerald-600"></div>
+                    
+                    <div class="w-full">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="font-bold text-slate-700 flex items-center gap-2">
+                                <i data-lucide="barcode" class="w-5 h-5 text-emerald-600 animate-pulse"></i> Scanner Barcode (NIS)
+                            </h3>
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
+                                <span class="w-2 h-2 mr-1.5 bg-emerald-500 rounded-full animate-ping"></span> Standby
+                            </span>
+                        </div>
+                        <p class="text-xs text-slate-500 mb-4">Scan kartu barcode NIS siswa menggunakan USB reader, kamera device, atau tombol simulasi.</p>
+                    </div>
+
+                    <div class="w-full my-2">
+                        <div id="camera-container" class="hidden relative w-full h-44 bg-slate-900 rounded-xl overflow-hidden flex items-center justify-center border-2 border-emerald-500">
+                            <video id="camera-preview" class="w-full h-full object-cover" autoplay playsinline></video>
+                            <div class="absolute inset-0 border-2 border-emerald-400/50 flex items-center justify-center pointer-events-none">
+                                <div class="w-3/4 h-12 border-2 border-dashed border-emerald-400 animate-pulse"></div>
+                            </div>
+                        </div>
+
+                        <div id="scanner-graphic" class="relative my-2 flex flex-col items-center justify-center py-6 bg-emerald-50 rounded-xl border border-emerald-200">
+                            <i data-lucide="scan" class="w-16 h-16 text-emerald-700 mb-2"></i>
+                            <span class="text-xs font-semibold text-emerald-800">Arahkan Barcode NIS ke Reader / Kamera</span>
+                        </div>
+
+                        <div class="mt-2 flex gap-2 justify-center">
+                            <button id="btn-toggle-camera" onclick="toggleCamera()" class="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-3 rounded-xl transition flex items-center gap-1.5 shadow-sm">
+                                <i data-lucide="camera" class="w-3.5 h-3.5"></i> <span id="cam-btn-text">Buka Kamera</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="w-full mt-4 space-y-3">
+                        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Simulasi Scan NIS</p>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button onclick="simulateScan('20240701')" class="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-semibold py-2.5 px-3 rounded-xl border border-emerald-200 transition flex items-center justify-center gap-1.5">
+                                <i data-lucide="file-text" class="w-3.5 h-3.5"></i> Ahmad (VII-A)
+                            </button>
+                            <button onclick="simulateScan('20240702')" class="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-semibold py-2.5 px-3 rounded-xl border border-emerald-200 transition flex items-center justify-center gap-1.5">
+                                <i data-lucide="file-text" class="w-3.5 h-3.5"></i> Aisyah (VII-A)
+                            </button>
+                            <button onclick="simulateScan('20240703')" class="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-semibold py-2.5 px-3 rounded-xl border border-emerald-200 transition flex items-center justify-center gap-1.5">
+                                <i data-lucide="file-text" class="w-3.5 h-3.5"></i> Rizki (VII-B)
+                            </button>
+                            <button onclick="simulateScan('20240801')" class="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-semibold py-2.5 px-3 rounded-xl border border-emerald-200 transition flex items-center justify-center gap-1.5">
+                                <i data-lucide="file-text" class="w-3.5 h-3.5"></i> Fatimah (VIII-A)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-center border-b border-slate-100 pb-4 mb-4">
+                            <h3 class="font-bold text-slate-800 flex items-center gap-2">
+                                <i data-lucide="monitor" class="w-5 h-5 text-emerald-600"></i> Layar Utama Informasi Siswa
+                            </h3>
+                            <span id="current-clock" class="text-sm font-semibold text-slate-500 bg-slate-100 px-3 py-1 rounded-full"></span>
+                        </div>
+
+                        <div id="display-card" class="bg-gradient-to-br from-emerald-800 to-emerald-950 text-white rounded-2xl p-6 shadow-md flex flex-col sm:flex-row items-center gap-6 min-h-[260px] justify-center transition-all">
+                            <div id="display-empty" class="text-center py-12">
+                                <i data-lucide="barcode" class="w-16 h-16 mx-auto text-emerald-400 mb-3 opacity-80 animate-bounce"></i>
+                                <h4 class="text-lg font-bold">Menunggu Scan Barcode NIS Siswa...</h4>
+                                <p class="text-xs text-emerald-200 mt-1">Gunakan scanner atau kamera untuk memindai kartu barcode NIS.</p>
+                            </div>
+
+                            <div id="display-content" class="hidden flex flex-col sm:flex-row items-center gap-6 w-full">
+                                <img id="res-photo" src="" alt="Foto Siswa" class="w-32 h-32 rounded-2xl object-cover border-4 border-emerald-600 shadow-lg">
+                                <div class="text-center sm:text-left space-y-2 flex-1">
+                                    <div class="inline-block bg-emerald-600 text-emerald-50 text-xs font-semibold px-3 py-1 rounded-full uppercase tracking-wider" id="res-status">Hadir - Masuk</div>
+                                    <h2 id="res-name" class="text-2xl font-bold tracking-tight text-white">Nama Siswa</h2>
+                                    <div class="grid grid-cols-2 gap-2 text-sm text-emerald-100 pt-2 border-t border-emerald-700/50">
+                                        <div><span class="text-emerald-300">NIS / NISN:</span> <span id="res-nis" class="font-medium"></span></div>
+                                        <div><span class="text-emerald-300">Kelas:</span> <span id="res-class" class="font-medium"></span></div>
+                                        <div><span class="text-emerald-300">Waktu Scan:</span> <span id="res-time" class="font-medium"></span></div>
+                                        <div><span class="text-emerald-300">Barcode (NIS):</span> <span id="res-barcode" class="font-mono text-xs bg-emerald-950 px-1.5 py-0.5 rounded"></span></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-3 mt-6 pt-4 border-t border-slate-100">
+                        <div class="bg-emerald-50 rounded-xl p-3 text-center border border-emerald-100">
+                            <p class="text-xs text-emerald-700 font-medium">Total Hadir</p>
+                            <p id="stat-hadir" class="text-xl font-bold text-emerald-900 mt-1">1</p>
+                        </div>
+                        <div class="bg-amber-50 rounded-xl p-3 text-center border border-amber-100">
+                            <p class="text-xs text-amber-700 font-medium">Terlambat</p>
+                            <p id="stat-terlambat" class="text-xl font-bold text-amber-900 mt-1">0</p>
+                        </div>
+                        <div class="bg-rose-50 rounded-xl p-3 text-center border border-rose-100">
+                            <p class="text-xs text-rose-700 font-medium">Belum Absen</p>
+                            <p id="stat-belum" class="text-xl font-bold text-rose-900 mt-1">4</p>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="p-4 sm:p-5 border-b border-slate-100 flex justify-between items-center flex-wrap gap-3">
+                    <h3 class="font-bold text-slate-800 flex items-center gap-2">
+                        <i data-lucide="history" class="w-5 h-5 text-emerald-600"></i> Log Absensi Masuk Hari Ini (Scan Pertama Tercatat)
+                    </h3>
+                    <div class="flex items-center gap-2">
+                        <select id="filter-class-log" onchange="renderAttendanceLog()" class="text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                            <option value="Semua">Semua Kelas</option>
+                        </select>
+                        <button onclick="clearAttendanceLog()" class="text-xs bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold px-3 py-2 rounded-lg transition border border-rose-200">Reset Log</button>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-200">
+                                <th class="p-4 font-semibold">Waktu Masuk</th>
+                                <th class="p-4 font-semibold">NIS (Barcode)</th>
+                                <th class="p-4 font-semibold">Nama Siswa</th>
+                                <th class="p-4 font-semibold">Kelas</th>
+                                <th class="p-4 font-semibold">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="attendance-table-body" class="divide-y divide-slate-100 text-sm text-slate-700">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 2: DATA SISWA & KELAS -->
+        <div id="tab-students" class="hidden space-y-6">
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                <div class="flex justify-between items-center mb-6 flex-wrap gap-4">
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-800">Manajemen Data Siswa (Barcode NIS)</h3>
+                        <p class="text-xs text-slate-500">Daftarkan, ubah data, atur kenaikan kelas, atau import/export template.</p>
+                    </div>
+                    <div id="student-action-buttons" class="hidden flex flex-wrap gap-2">
+                        <button onclick="downloadTemplateCSV()" class="bg-slate-700 hover:bg-slate-800 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition flex items-center gap-2 shadow-sm" title="Download template CSV untuk tambah banyak siswa">
+                            <i data-lucide="file-spreadsheet" class="w-4 h-4"></i> Download Template CSV
+                        </button>
+                        <button onclick="triggerCSVImport()" class="bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition flex items-center gap-2 shadow-sm" title="Upload data dari file CSV">
+                            <i data-lucide="upload" class="w-4 h-4"></i> Import CSV Siswa
+                        </button>
+                        <input type="file" id="csv-file-input" class="hidden" accept=".csv" onchange="handleCSVImport(event)">
+
+                        <button onclick="openBulkPrintModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition flex items-center gap-2 shadow-sm">
+                            <i data-lucide="printer" class="w-4 h-4"></i> Cetak Semua Kartu
+                        </button>
+                        <button onclick="openPromotionModal()" class="bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition flex items-center gap-2 shadow-sm">
+                            <i data-lucide="trending-up" class="w-4 h-4"></i> Kenaikan Kelas Massal
+                        </button>
+                        <button onclick="openStudentModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition flex items-center gap-2 shadow-sm">
+                            <i data-lucide="user-plus" class="w-4 h-4"></i> Tambah Siswa Baru
+                        </button>
+                    </div>
+                </div>
+
+                <div id="student-content-container">
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 3: REKAPITULASI ABSENSI H, S, I, A -->
+        <div id="tab-attendance" class="hidden space-y-6">
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                <div class="flex justify-between items-center mb-6 flex-wrap gap-4">
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-800">Rekapitulasi Absensi Madrasah (H, S, I, A)</h3>
+                        <p class="text-xs text-slate-500">Akumulasi rekapitulasi kehadiran seluruh siswa (Hadir, Sakit, Izin, Alpa).</p>
+                    </div>
+                    <div class="flex gap-2 items-center flex-wrap">
+                        <select id="filter-class-recap" onchange="renderRecapTable()" class="text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                            <option value="Semua">Semua Kelas</option>
+                        </select>
+                        <button onclick="exportCSV()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold px-4 py-2.5 rounded-xl transition flex items-center gap-2">
+                            <i data-lucide="download" class="w-4 h-4"></i> Export CSV Rekap
+                        </button>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto border border-slate-200 rounded-xl">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-200">
+                                <th class="p-4 font-semibold">No</th>
+                                <th class="p-4 font-semibold">NIS</th>
+                                <th class="p-4 font-semibold">Nama Siswa</th>
+                                <th class="p-4 font-semibold">Kelas</th>
+                                <th class="p-4 font-semibold text-center bg-emerald-50 text-emerald-800">H (Hadir)</th>
+                                <th class="p-4 font-semibold text-center bg-blue-50 text-blue-800">S (Sakit)</th>
+                                <th class="p-4 font-semibold text-center bg-amber-50 text-amber-800">I (Izin)</th>
+                                <th class="p-4 font-semibold text-center bg-rose-50 text-rose-800">A (Alpa)</th>
+                                <th class="p-4 font-semibold text-center">Total Kehadiran</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recap-table-body" class="divide-y divide-slate-100 text-sm text-slate-700">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 4: SQL SCHEMA -->
+        <div id="tab-schema" class="hidden space-y-6">
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-800">Supabase SQL Schema & Keamanan (schema.sql)</h3>
+                        <p class="text-xs text-slate-500">Salin skrip SQL ini ke SQL Editor di Supabase untuk menyiapkan tabel database.</p>
+                    </div>
+                    <button onclick="copySQLSchema()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-3 py-2 rounded-lg transition flex items-center gap-1.5 shadow-sm">
+                        <i data-lucide="copy" class="w-3.5 h-3.5"></i> Salin Skrip SQL
+                    </button>
+                </div>
+                <pre id="sql-code-box" class="bg-slate-900 text-emerald-400 p-4 rounded-xl text-xs font-mono overflow-x-auto leading-relaxed border border-slate-800">
+-- ====================================================================
+-- SENSASI MADRASAH - SUPABASE SQL SCHEMA (NIS SEBAGAI BARCODE)
+-- ====================================================================
+
+CREATE TABLE IF NOT EXISTS classes (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    name VARCHAR(100) NOT NULL UNIQUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS students (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    nis VARCHAR(50) NOT NULL UNIQUE,
+    name VARCHAR(150) NOT NULL,
+    class_name VARCHAR(100) NOT NULL,
+    gender VARCHAR(10) CHECK (gender IN ('L', 'P')),
+    photo TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS attendance (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    student_id UUID REFERENCES students(id) ON DELETE CASCADE,
+    nis VARCHAR(50) NOT NULL,
+    name VARCHAR(150) NOT NULL,
+    class_name VARCHAR(100) NOT NULL,
+    status VARCHAR(50) DEFAULT 'Hadir',
+    type VARCHAR(20) DEFAULT 'Masuk',
+    timestamp TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+ALTER TABLE classes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE students ENABLE ROW LEVEL SECURITY;
+ALTER TABLE attendance ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Public Access Classes" ON classes FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public Access Students" ON students FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public Access Attendance" ON attendance FOR ALL USING (true) WITH CHECK (true);
+                </pre>
+            </div>
+        </div>
+
+        <!-- TAB 5: PANDUAN DEPLOY -->
+        <div id="tab-deploy" class="hidden space-y-6">
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-6">
+                <div>
+                    <h3 class="text-lg font-bold text-slate-800">Langkah Deploy (Zero-Installation)</h3>
+                    <p class="text-xs text-slate-500">Panduan mengunggah aplikasi absensi Barcode Madrasah ke GitHub Pages & Supabase.</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="bg-slate-50 border border-slate-200 rounded-xl p-5 space-y-2">
+                        <div class="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold text-sm">1</div>
+                        <h4 class="font-bold text-slate-800 text-sm">Buat Repository GitHub</h4>
+                        <p class="text-xs text-slate-600">Buat repository publik baru di GitHub (misal: <code class="bg-slate-200 px-1 py-0.5 rounded">sensasi-madrasah</code>).</p>
+                    </div>
+                    <div class="bg-slate-50 border border-slate-200 rounded-xl p-5 space-y-2">
+                        <div class="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold text-sm">2</div>
+                        <h4 class="font-bold text-slate-800 text-sm">Upload File index.html</h4>
+                        <p class="text-xs text-slate-600">Simpan seluruh kode ini ke dalam satu file bernama <code class="bg-slate-200 px-1 py-0.5 rounded">index.html</code> dan upload langsung melalui web browser GitHub.</p>
+                    </div>
+                    <div class="bg-slate-50 border border-slate-200 rounded-xl p-5 space-y-2">
+                        <div class="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold text-sm">3</div>
+                        <h4 class="font-bold text-slate-800 text-sm">Aktifkan GitHub Pages</h4>
+                        <p class="text-xs text-slate-600">Buka menu Settings > Pages di repository Anda, lalu pilih Branch <code class="bg-slate-200 px-1 py-0.5 rounded">main / root</code> untuk langsung online.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <div id="promotion-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6 space-y-4 relative animate-in fade-in zoom-in duration-200">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                <h3 class="font-bold text-slate-800 text-base flex items-center gap-2">
+                    <i data-lucide="trending-up" class="w-5 h-5 text-amber-600"></i> Proses Kenaikan Kelas Massal
+                </h3>
+                <button onclick="closePromotionModal()" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <p class="text-xs text-slate-500">Fitur ini menaikkan tingkat seluruh kelas secara otomatis. Catatan: Untuk siswa yang tinggal kelas, Anda dapat mengubah kelasnya secara individual langsung dari menu <strong>Data Siswa</strong> menggunakan tombol Edit.</p>
+            
+            <div class="space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs text-slate-700">
+                <p class="font-semibold text-slate-800">Aturan Pemindahan Otomatis:</p>
+                <ul class="list-disc pl-4 space-y-1 text-slate-600">
+                    <li><strong>VII-A / VII-B</strong> ➔ <span class="text-emerald-700 font-medium">VIII-A / VIII-B</span></li>
+                    <li><strong>VIII-A / VIII-B</strong> ➔ <span class="text-emerald-700 font-medium">IX-A / IX-B</span></li>
+                    <li><strong>IX-A & IX-B</strong> ➔ <span class="text-rose-700 font-medium">Kelulusan Siswa</span></li>
+                </ul>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Tindakan untuk Siswa Kelas IX (Kelulusan)</label>
+                <select id="promo-grad-action" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-800 focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                    <option value="delete">Hapus dari Data Aktif (Siswa Telah Lulus)</option>
+                    <option value="keep">Biarkan Sementara di Kelas IX</option>
+                </select>
+            </div>
+
+            <div class="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <button type="button" onclick="closePromotionModal()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold px-4 py-2.5 rounded-xl transition">Batal</button>
+                <button type="button" onclick="executePromotion()" class="bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition shadow-sm">Proses Kenaikan Massal</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="student-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4 relative animate-in fade-in zoom-in duration-200">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                <h3 id="modal-title" class="font-bold text-slate-800 text-base">Tambah Siswa Baru</h3>
+                <button onclick="closeStudentModal()" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <form id="student-form" onsubmit="handleSaveStudent(event)" class="space-y-4">
+                <input type="hidden" id="student-edit-id">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Nomor Induk Siswa (NIS / Barcode)</label>
+                    <input type="text" id="input-nis" required placeholder="Contoh: 20240704" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-mono text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                    <p class="text-[10px] text-slate-400 mt-1">Nomor Induk Siswa (NIS) ini otomatis menjadi barcode yang discan.</p>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Nama Lengkap Siswa</label>
+                    <input type="text" id="input-name" required placeholder="Contoh: Ahmad Zaky" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Kelas Madrasah</label>
+                        <select id="input-class" required class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Jenis Kelamin</label>
+                        <select id="input-gender" required class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                            <option value="L">Laki-laki (L)</option>
+                            <option value="P">Perempuan (P)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                    <button type="button" onclick="closeStudentModal()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold px-4 py-2.5 rounded-xl transition">Batal</button>
+                    <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition shadow-sm">Simpan Data</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Student Barcode Card Modal -->
+    <div id="barcode-card-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-6 space-y-5 relative animate-in fade-in zoom-in duration-200 border border-slate-200 text-center">
+            <div class="absolute top-4 right-4 no-print">
+                <button onclick="closeBarcodeModal()" class="text-slate-400 hover:text-slate-600 p-1 rounded-full"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            
+            <div class="bg-emerald-900 text-white p-4 rounded-2xl shadow-inner flex items-center space-x-3">
+                <div class="bg-emerald-700 p-2 rounded-xl">
+                    <i data-lucide="award" class="w-6 h-6 text-emerald-100"></i>
+                </div>
+                <div class="text-left">
+                    <h4 class="font-bold text-sm tracking-wide">KARTU BARCODE SISWA</h4>
+                    <p class="text-[10px] text-emerald-200">SENSASI MADRASAH</p>
+                </div>
+            </div>
+
+            <div class="flex flex-col items-center space-y-3">
+                <img id="bc-modal-photo" src="" alt="Foto Siswa" class="w-24 h-24 rounded-2xl object-cover border-4 border-emerald-500 shadow-md">
+                <div>
+                    <h3 id="bc-modal-name" class="font-bold text-slate-800 text-lg">Nama Siswa</h3>
+                    <p id="bc-modal-class" class="text-xs font-semibold text-emerald-700 bg-emerald-50 inline-block px-2.5 py-1 rounded-full mt-1">Kelas VII-A</p>
+                    <p id="bc-modal-nis" class="text-xs font-mono font-bold text-slate-500 mt-1">NIS: 20240701</p>
+                </div>
+            </div>
+
+            <div class="bg-slate-50 p-3 rounded-2xl border border-slate-200 flex flex-col items-center justify-center">
+                <svg id="student-barcode-svg" class="max-w-full h-auto"></svg>
+            </div>
+
+            <div class="flex gap-2 pt-2 no-print">
+                <button onclick="printBarcodeCard()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold py-2.5 px-4 rounded-xl transition shadow-sm flex items-center justify-center gap-2">
+                    <i data-lucide="printer" class="w-4 h-4"></i> Cetak Kartu
+                </button>
+                <button onclick="closeBarcodeModal()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold py-2.5 px-4 rounded-xl transition">Tutup</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bulk ID Cards Print Modal -->
+    <div id="bulk-print-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-50 hidden flex flex-col overflow-y-auto p-4 sm:p-8">
+        <div class="max-w-6xl w-full mx-auto bg-white rounded-3xl shadow-2xl p-6 sm:p-8 space-y-6 my-auto">
+            <div class="flex justify-between items-center border-b border-slate-200 pb-4 no-print">
+                <div>
+                    <h3 class="font-bold text-slate-800 text-xl flex items-center gap-2">
+                        <i data-lucide="printer" class="w-6 h-6 text-indigo-600"></i> Cetak Kartu Barcode Massal (Standar ID Card)
+                    </h3>
+                    <p class="text-xs text-slate-500 mt-1">Pratinjau seluruh kartu pelajar siap cetak dengan ukuran standar ID Card.</p>
+                </div>
+                <div class="flex gap-3">
+                    <button onclick="window.print()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition shadow-sm flex items-center gap-2">
+                        <i data-lucide="printer" class="w-4 h-4"></i> Cetak Sekarang (Print)
+                    </button>
+                    <button onclick="closeBulkPrintModal()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold px-4 py-2.5 rounded-xl transition">Tutup</button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="bulk-cards-grid">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function playBeep(success = true) {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = success ? 'sine' : 'sawtooth';
+                osc.frequency.setValueAtTime(success ? 880 : 220, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + (success ? 0.15 : 0.4));
+            } catch (e) {
+            }
+        }
+
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            const bgClass = type === 'success' ? 'bg-emerald-800 text-white' : type === 'error' ? 'bg-rose-800 text-white' : 'bg-amber-800 text-white';
+            toast.className = `pointer-events-auto px-4 py-3 rounded-xl shadow-lg text-sm font-semibold flex items-center gap-2 transform translate-y-2 opacity-0 transition-all duration-300 ${bgClass}`;
+            
+            const icon = type === 'success' ? 'check-circle' : type === 'error' ? 'alert-circle' : 'info';
+            toast.innerHTML = `<i data-lucide="${icon}" class="w-4 h-4"></i> <span>${message}</span>`;
+            container.appendChild(toast);
+            lucide.createIcons();
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            }, 10);
+
+            setTimeout(() => {
+                toast.classList.add('translate-y-2', 'opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+
+        function switchTab(tabId) {
+            appState.currentTab = tabId;
+            ['scanner', 'students', 'attendance', 'schema', 'deploy'].forEach(t => {
+                const el = document.getElementById(`tab-${t}`);
+                const nav = document.getElementById(`nav-${t}`);
+                if (t === tabId) {
+                    el.classList.remove('hidden');
+                    nav.className = 'px-3 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2 bg-emerald-800 text-white shadow';
+                } else {
+                    el.classList.add('hidden');
+                    nav.className = 'px-3 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2 text-emerald-100 hover:bg-emerald-800';
+                }
+            });
+
+            if (tabId === 'students') renderStudentsTable();
+            if (tabId === 'attendance') renderRecapTable();
+            if (tabId === 'scanner') updateStats();
+            
+            if (tabId !== 'scanner' && appState.cameraActive) {
+                toggleCamera();
+            }
+        }
+
+        function updateClock() {
+            const now = new Date();
+            const clockEl = document.getElementById('current-clock');
+            if (clockEl) {
+                clockEl.innerHTML = `<i data-lucide="clock" class="w-3.5 h-3.5 inline mr-1"></i> ${now.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' })} - ${now.toLocaleTimeString('id-ID')}`;
+                lucide.createIcons();
+            }
+        }
+        setInterval(updateClock, 1000);
+
+        window.addEventListener('keypress', (e) => {
+            if (appState.currentTab !== 'scanner') return;
+            if (['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+
+            if (e.key === 'Enter') {
+                if (appState.barcodeBuffer.trim().length > 0) {
+                    processBarcode(appState.barcodeBuffer.trim());
+                    appState.barcodeBuffer = '';
+                }
+            } else {
+                appState.barcodeBuffer += e.key;
+                clearTimeout(window.barcodeTimer);
+                window.barcodeTimer = setTimeout(() => {
+                    appState.barcodeBuffer = '';
+                }, 500);
+            }
+        });
+
+        async function toggleCamera() {
+            const container = document.getElementById('camera-container');
+            const graphic = document.getElementById('scanner-graphic');
+            const btnText = document.getElementById('cam-btn-text');
+            const videoEl = document.getElementById('camera-preview');
+
+            if (!appState.cameraActive) {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                    videoEl.srcObject = stream;
+                    appState.cameraStream = stream;
+                    appState.cameraActive = true;
+                    container.classList.remove('hidden');
+                    graphic.classList.add('hidden');
+                    btnText.innerText = 'Tutup Kamera';
+                    showToast('Kamera aktif. Arahkan barcode NIS ke area bidik.', 'success');
+
+                    if ('BarcodeDetector' in window) {
+                        const barcodeDetector = new BarcodeDetector({ formats: ['code_128', 'qr_code', 'ean_13', 'code_39'] });
+                        window.barcodeScanInterval = setInterval(async () => {
+                            if (!appState.cameraActive) return;
+                            try {
+                                const barcodes = await barcodeDetector.detect(videoEl);
+                                if (barcodes.length > 0) {
+                                    const code = barcodes[0].rawValue;
+                                    processBarcode(code);
+                                    toggleCamera();
+                                }
+                            } catch (err) {
+                            }
+                        }, 500);
+                    }
+                } catch (err) {
+                    showToast('Gagal mengakses kamera: ' + err.message, 'error');
+                }
+            } else {
+                if (appState.cameraStream) {
+                    appState.cameraStream.getTracks().forEach(track => track.stop());
+                }
+                if (window.barcodeScanInterval) clearInterval(window.barcodeScanInterval);
+                appState.cameraActive = false;
+                container.classList.add('hidden');
+                graphic.classList.remove('hidden');
+                btnText.innerText = 'Buka Kamera';
+            }
+        }
+
+        function simulateScan(nisVal) {
+            processBarcode(nisVal);
+        }
+
+        async function processBarcode(nisVal) {
+            let student = null;
+
+            if (is_preview || !supabaseClient) {
+                student = mockStudents.find(s => s.nis.toLowerCase() === nisVal.toLowerCase());
+            } else {
+                try {
+                    const { data } = await supabaseClient
+                        .from('students')
+                        .select('*')
+                        .eq('nis', nisVal)
+                        .single();
+                    if (data) student = data;
+                } catch (err) {
+                    console.error('Supabase query error:', err);
+                }
+            }
+
+            if (!student) {
+                playBeep(false);
+                showToast(`NIS Barcode (${nisVal}) tidak terdaftar dalam database!`, 'error');
+                return;
+            }
+
+            const todayStr = new Date().toDateString();
+            let alreadyCheckedIn = null;
+
+            if (is_preview || !supabaseClient) {
+                alreadyCheckedIn = mockAttendance.find(a => a.nis === student.nis && a.date_str === todayStr);
+            } else {
+                try {
+                    const { data } = await supabaseClient
+                        .from('attendance')
+                        .select('*')
+                        .eq('nis', student.nis)
+                        .gte('timestamp', new Date(new Date().setHours(0,0,0,0)).toISOString())
+                        .single();
+                    if (data) alreadyCheckedIn = data;
+                } catch (err) {
+                }
+            }
+
+            if (alreadyCheckedIn) {
+                playBeep(false);
+                showToast(`⚠️ ${student.name} sudah melakukan absensi hari ini pada pukul ${alreadyCheckedIn.timestamp}! (Scan Pertama Dipertahankan)`, 'info');
+                showDisplayScreen(student, alreadyCheckedIn.timestamp);
+                showFullscreenOverlay(student, alreadyCheckedIn.timestamp);
+                return;
+            }
+
+            playBeep(true);
+            const currentTime = new Date().toLocaleTimeString('id-ID');
+            const attendanceRecord = {
+                id: Date.now(),
+                student_id: student.id,
+                nis: student.nis,
+                name: student.name,
+                class_name: student.class_name,
+                timestamp: currentTime,
+                date_str: todayStr,
+                status: 'Hadir',
+                type: 'Masuk'
+            };
+
+            mockAttendance.unshift(attendanceRecord);
+            showDisplayScreen(student, currentTime);
+            showFullscreenOverlay(student, currentTime);
+            renderAttendanceLog();
+            updateStats();
+            showToast(`Absensi Berhasil (Scan Pertama): ${student.name} (${student.class_name})`, 'success');
+
+            if (!is_preview && supabaseClient) {
+                await supabaseClient.from('attendance').insert([{
+                    student_id: student.id,
+                    nis: student.nis,
+                    name: student.name,
+                    class_name: student.class_name,
+                    status: 'Hadir',
+                    type: 'Masuk',
+                    timestamp: new Date().toISOString()
+                }]);
+            }
+        }
+
+        let fullscreenTimer = null;
+        function showFullscreenOverlay(student, timeStr) {
+            const overlay = document.getElementById('fullscreen-overlay');
+            document.getElementById('fs-photo').src = student.photo || 'https://placehold.co/200x200/047857/ffffff?text=Siswa';
+            document.getElementById('fs-name').innerText = student.name;
+            document.getElementById('fs-class-nis').innerText = `${student.class_name} • NIS: ${student.nis}`;
+            document.getElementById('fs-time').innerText = timeStr;
+            
+            overlay.classList.remove('hidden');
+            lucide.createIcons();
+
+            if (fullscreenTimer) clearTimeout(fullscreenTimer);
+            fullscreenTimer = setTimeout(() => {
+                closeFullscreenOverlay();
+            }, 4000);
+        }
+
+        function closeFullscreenOverlay() {
+            const overlay = document.getElementById('fullscreen-overlay');
+            overlay.classList.add('hidden');
+            if (fullscreenTimer) clearTimeout(fullscreenTimer);
+        }
+
+        function showDisplayScreen(student, timeStr) {
+            document.getElementById('display-empty').classList.add('hidden');
+            const content = document.getElementById('display-content');
+            content.classList.remove('hidden');
+
+            document.getElementById('res-photo').src = student.photo || 'https://placehold.co/150x150/047857/ffffff?text=Siswa';
+            document.getElementById('res-name').innerText = student.name;
+            document.getElementById('res-nis').innerText = student.nis;
+            document.getElementById('res-class').innerText = student.class_name;
+            document.getElementById('res-time').innerText = timeStr;
+            document.getElementById('res-barcode').innerText = student.nis;
+
+            const card = document.getElementById('display-card');
+            card.classList.add('ring-4', 'ring-emerald-400', 'scale-[1.01]');
+            setTimeout(() => {
+                card.classList.remove('ring-4', 'ring-emerald-400', 'scale-[1.01]');
+            }, 600);
+        }
+
+        function renderAttendanceLog() {
+            const tbody = document.getElementById('attendance-table-body');
+            const filterClass = document.getElementById('filter-class-log').value;
+            
+            let filtered = mockAttendance;
+            if (filterClass !== 'Semua') {
+                filtered = mockAttendance.filter(a => a.class_name === filterClass);
+            }
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="p-6 text-center text-slate-400">Belum ada data absensi hari ini.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(a => `
+                <tr class="hover:bg-slate-50 transition border-b border-slate-100">
+                    <td class="p-4 font-medium text-emerald-800">${a.timestamp}</td>
+                    <td class="p-4 font-mono text-xs font-bold text-emerald-900">${a.nis}</td>
+                    <td class="p-4 font-semibold text-slate-800">${a.name}</td>
+                    <td class="p-4"><span class="bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-lg text-xs font-semibold">${a.class_name}</span></td>
+                    <td class="p-4"><span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">${a.status}</span></td>
+                </tr>
+            `).join('');
+        }
+
+        function updateStats() {
+            const hadirToday = new Set(mockAttendance.map(a => a.nis)).size;
+            document.getElementById('stat-hadir').innerText = hadirToday;
+            document.getElementById('stat-terlambat').innerText = '0';
+            document.getElementById('stat-belum').innerText = Math.max(0, mockStudents.length - hadirToday);
+        }
+
+        function clearAttendanceLog() {
+            mockAttendance = [];
+            renderAttendanceLog();
+            updateStats();
+            showToast('Log absensi berhasil direset.', 'info');
+        }
+
+        function renderStudentsTable() {
+            const container = document.getElementById('student-content-container');
+            const actionButtons = document.getElementById('student-action-buttons');
+
+            if (!studentDataUnlocked) {
+                if (actionButtons) actionButtons.classList.add('hidden');
+                container.innerHTML = `
+                    <div class="py-16 px-4 text-center space-y-4 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 my-4">
+                        <div class="w-16 h-16 bg-slate-200 text-slate-500 rounded-full flex items-center justify-center mx-auto shadow-inner">
+                            <i data-lucide="shield" class="w-8 h-8"></i>
+                        </div>
+                        <div class="space-y-1">
+                            <h4 class="text-lg font-bold text-slate-800">Area Terproteksi</h4>
+                            <p class="text-xs text-slate-500 max-w-md mx-auto">Halaman manajemen data siswa memerlukan verifikasi hak akses administrator madrasah.</p>
+                        </div>
+                    </div>
+                `;
+                lucide.createIcons();
+                return;
+            }
+
+            if (actionButtons) actionButtons.classList.remove('hidden');
+
+            container.innerHTML = `
+                <div class="flex items-center gap-2 mb-6 overflow-x-auto pb-2" id="class-filter-chips">
+                </div>
+
+                <div class="overflow-x-auto border border-slate-200 rounded-xl">
+                    <table class="w-full text-left border-collapse table-fixed">
+                        <thead>
+                            <tr class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-200">
+                                <th class="p-4 font-semibold w-2/5">Siswa</th>
+                                <th class="p-4 font-semibold w-1/5">NIS (Barcode)</th>
+                                <th class="p-4 font-semibold w-1/5">Kelas</th>
+                                <th class="p-4 font-semibold text-center w-1/5">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="students-table-body" class="divide-y divide-slate-100 text-sm text-slate-700">
+                        </tbody>
+                    </table>
+                </div>
+            `;
+
+            const chipsContainer = document.getElementById('class-filter-chips');
+            let chipsHTML = `<button onclick="filterStudentsByClass('Semua')" class="px-3 py-1.5 rounded-xl text-xs font-semibold transition ${appState.selectedClassFilter === 'Semua' ? 'bg-emerald-800 text-white shadow' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">Semua Kelas</button>`;
+            defaultClasses.forEach(c => {
+                chipsHTML += `<button onclick="filterStudentsByClass('${c}')" class="px-3 py-1.5 rounded-xl text-xs font-semibold transition ${appState.selectedClassFilter === c ? 'bg-emerald-800 text-white shadow' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">${c}</button>`;
+            });
+            chipsContainer.innerHTML = chipsHTML;
+
+            const tbody = document.getElementById('students-table-body');
+            let filtered = mockStudents;
+            if (appState.selectedClassFilter !== 'Semua') {
+                filtered = mockStudents.filter(s => s.class_name === appState.selectedClassFilter);
+            }
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-slate-400">Tidak ada data siswa pada kelas ini.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(s => `
+                <tr class="hover:bg-slate-50 transition border-b border-slate-100">
+                    <td class="p-4 truncate">
+                        <div class="flex items-center gap-3">
+                            <img src="${s.photo}" class="w-10 h-10 rounded-xl object-cover border border-slate-200 flex-shrink-0">
+                            <div class="truncate">
+                                <p class="font-semibold text-slate-800 truncate">${s.name}</p>
+                                <p class="text-xs text-slate-400">Gender: ${s.gender === 'L' ? 'Laki-laki' : 'Perempuan'}</p>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="p-4 truncate">
+                        <span class="font-mono text-xs text-emerald-900 font-bold bg-emerald-50 py-1 px-2.5 rounded-lg border border-emerald-200 inline-block">${s.nis}</span>
+                    </td>
+                    <td class="p-4 truncate">
+                        <span class="bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-lg text-xs font-semibold">${s.class_name}</span>
+                    </td>
+                    <td class="p-4 text-center">
+                        <div class="flex items-center justify-center gap-1">
+                            <button onclick="openBarcodeModal(${s.id})" class="p-2 hover:bg-emerald-50 text-emerald-600 rounded-lg transition" title="Lihat & Cetak Barcode Siswa"><i data-lucide="barcode" class="w-4 h-4"></i></button>
+                            <button onclick="openStudentModal(${s.id})" class="p-2 hover:bg-amber-50 text-amber-600 rounded-lg transition" title="Edit / Ubah Kelas Siswa"><i data-lucide="edit-3" class="w-4 h-4"></i></button>
+                            <button onclick="deleteStudent(${s.id})" class="p-2 hover:bg-rose-50 text-rose-600 rounded-lg transition" title="Hapus Siswa"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+            lucide.createIcons();
+        }
+
+        function filterStudentsByClass(className) {
+            appState.selectedClassFilter = className;
+            renderStudentsTable();
+        }
+
+        function downloadTemplateCSV() {
+            const csvContent = "nis,name,class_name,gender\n20240705,Contoh Siswa Baru,VII-A (MTs),L\n20240706,Siti Aminah,VII-B (MTs),P";
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.setAttribute('href', url);
+            a.setAttribute('download', 'template_tambah_siswa_madrasah.csv');
+            a.click();
+            showToast('Template CSV berhasil didownload!', 'success');
+        }
+
+        function triggerCSVImport() {
+            document.getElementById('csv-file-input').click();
+        }
+
+        function handleCSVImport(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const text = e.target.result;
+                parseAndAddCSVStudents(text);
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        }
+
+        function parseAndAddCSVStudents(text) {
+            const lines = text.split(/\r\n|\n/);
+            let addedCount = 0;
+            let startIndex = 0;
+            if (lines.length > 0 && lines[0].toLowerCase().includes('nis')) {
+                startIndex = 1;
+            }
+
+            for (let i = startIndex; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line) continue;
+                const cols = line.split(',').map(val => val.trim().replace(/^"|"$/g, ''));
+                if (cols.length >= 4) {
+                    const [nis, name, class_name, gender] = cols;
+                    if (nis && name && class_name) {
+                        const exists = mockStudents.some(s => s.nis === nis);
+                        if (!exists) {
+                            mockStudents.push({
+                                id: Date.now() + i,
+                                nis,
+                                name,
+                                class_name,
+                                gender: gender === 'P' ? 'P' : 'L',
+                                photo: `https://placehold.co/150x150/047857/ffffff?text=${name.substring(0,2).toUpperCase()}`
+                            });
+                            addedCount++;
+                        }
+                    }
+                }
+            }
+
+            if (studentDataUnlocked) {
+                renderStudentsTable();
+            }
+            updateStats();
+            showToast(`Berhasil mengimpor ${addedCount} siswa baru dari CSV!`, 'success');
+        }
+
+        function openBarcodeModal(studentId) {
+            const student = mockStudents.find(s => s.id === studentId);
+            if (!student) return;
+            document.getElementById('bc-modal-name').innerText = student.name;
+            document.getElementById('bc-modal-nis').innerText = `NIS: ${student.nis}`;
+            document.getElementById('bc-modal-class').innerText = student.class_name;
+            document.getElementById('bc-modal-photo').src = student.photo;
+            
+            document.getElementById('barcode-card-modal').classList.remove('hidden');
+            setTimeout(() => {
+                JsBarcode("#student-barcode-svg", student.nis, {
+                    format: "CODE128",
+                    lineColor: "#0f172a",
+                    width: 2,
+                    height: 55,
+                    displayValue: true,
+                    fontSize: 14
+                });
+            }, 50);
+        }
+
+        function closeBarcodeModal() {
+            document.getElementById('barcode-card-modal').classList.add('hidden');
+        }
+
+        function printBarcodeCard() {
+            window.print();
+        }
+
+        function openBulkPrintModal() {
+            const grid = document.getElementById('bulk-cards-grid');
+            grid.innerHTML = mockStudents.map((s, index) => `
+                <div class="bg-white border-2 border-emerald-800 rounded-2xl p-4 shadow-md flex flex-col justify-between w-full h-[220px] relative overflow-hidden">
+                    <div class="flex items-center justify-between border-b border-emerald-100 pb-2">
+                        <div class="flex items-center gap-2">
+                            <div class="bg-emerald-800 text-white p-1 rounded-lg">
+                                <i data-lucide="award" class="w-4 h-4"></i>
+                            </div>
+                            <div>
+                                <h5 class="font-extrabold text-xs text-emerald-900 uppercase">KARTU PELAJAR</h5>
+                                <p class="text-[9px] text-slate-500">SENSASI MADRASAH</p>
+                            </div>
+                        </div>
+                        <span class="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full">${s.class_name}</span>
+                    </div>
+                    
+                    <div class="flex items-center gap-3 my-2">
+                        <img src="${s.photo}" class="w-14 h-14 rounded-xl object-cover border-2 border-emerald-600 shadow-sm flex-shrink-0">
+                        <div class="overflow-hidden">
+                            <h4 class="font-bold text-slate-800 text-sm truncate">${s.name}</h4>
+                            <p class="text-[11px] font-mono font-semibold text-emerald-700">NIS: ${s.nis}</p>
+                            <p class="text-[10px] text-slate-400">Gender: ${s.gender === 'L' ? 'Laki-laki' : 'Perempuan'}</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-50 border border-slate-200 rounded-xl p-1.5 flex items-center justify-center">
+                        <svg id="bulk-bc-${index}" class="w-full h-10"></svg>
+                    </div>
+                </div>
+            `).join('');
+
+            document.getElementById('bulk-print-modal').classList.remove('hidden');
+            lucide.createIcons();
+
+            setTimeout(() => {
+                mockStudents.forEach((s, index) => {
+                    JsBarcode(`#bulk-bc-${index}`, s.nis, {
+                        format: "CODE128",
+                        lineColor: "#0f172a",
+                        width: 1.5,
+                        height: 35,
+                        displayValue: true,
+                        fontSize: 11
+                    });
+                });
+            }, 50);
+        }
+
+        function closeBulkPrintModal() {
+            document.getElementById('bulk-print-modal').classList.add('hidden');
+        }
+
+        function openStudentModal(studentId = null) {
+            const selectClass = document.getElementById('input-class');
+            selectClass.innerHTML = defaultClasses.map(c => `<option value="${c}">${c}</option>`).join('');
+            
+            const form = document.getElementById('student-form');
+            form.reset();
+            
+            const modalTitle = document.getElementById('modal-title');
+            const editIdInput = document.getElementById('student-edit-id');
+
+            if (studentId) {
+                const student = mockStudents.find(s => s.id === studentId);
+                if (student) {
+                    modalTitle.innerText = 'Edit Data & Ubah Kelas Siswa';
+                    editIdInput.value = student.id;
+                    document.getElementById('input-nis').value = student.nis;
+                    document.getElementById('input-name').value = student.name;
+                    document.getElementById('input-class').value = student.class_name;
+                    document.getElementById('input-gender').value = student.gender;
+                }
+            } else {
+                modalTitle.innerText = 'Tambah Siswa Baru';
+                editIdInput.value = '';
+            }
+
+            document.getElementById('student-modal').classList.remove('hidden');
+        }
+
+        function closeStudentModal() {
+            document.getElementById('student-modal').classList.add('hidden');
+        }
+
+        function handleSaveStudent(e) {
+            e.preventDefault();
+            const editId = document.getElementById('student-edit-id').value;
+            const nis = document.getElementById('input-nis').value.trim();
+            const name = document.getElementById('input-name').value;
+            const className = document.getElementById('input-class').value;
+            const gender = document.getElementById('input-gender').value;
+
+            if (editId) {
+                mockStudents = mockStudents.map(s => {
+                    if (s.id == editId) {
+                        return {
+                            ...s,
+                            nis,
+                            name,
+                            class_name: className,
+                            gender
+                        };
+                    }
+                    return s;
+                });
+                showToast('Data & kelas siswa berhasil diperbarui!', 'success');
+            } else {
+                const newStudent = {
+                    id: Date.now(),
+                    nis,
+                    name,
+                    class_name: className,
+                    gender,
+                    photo: `https://placehold.co/150x150/047857/ffffff?text=${name.substring(0,2).toUpperCase()}`
+                };
+                mockStudents.push(newStudent);
+                showToast('Siswa dan barcode NIS berhasil didaftarkan!', 'success');
+            }
+
+            closeStudentModal();
+            renderStudentsTable();
+        }
+
+        function deleteStudent(id) {
+            mockStudents = mockStudents.filter(s => s.id !== id);
+            renderStudentsTable();
+            showToast('Data siswa berhasil dihapus.', 'info');
+        }
+
+        function openPromotionModal() {
+            document.getElementById('promotion-modal').classList.remove('hidden');
+        }
+
+        function closePromotionModal() {
+            document.getElementById('promotion-modal').classList.add('hidden');
+        }
+
+        function executePromotion() {
+            const gradAction = document.getElementById('promo-grad-action').value;
+            let promotedCount = 0;
+
+            mockStudents = mockStudents.map(student => {
+                let currentClass = student.class_name;
+                if (currentClass === "VII-A (MTs)") {
+                    promotedCount++;
+                    return { ...student, class_name: "VIII-A (MTs)" };
+                } else if (currentClass === "VII-B (MTs)") {
+                    promotedCount++;
+                    return { ...student, class_name: "VIII-B (MTs)" };
+                } else if (currentClass === "VIII-A (MTs)") {
+                    promotedCount++;
+                    return { ...student, class_name: "IX-A (MTs)" };
+                } else if (currentClass === "VIII-B (MTs)") {
+                    promotedCount++;
+                    return { ...student, class_name: "IX-B (MTs)" };
+                }
+                return student;
+            });
+
+            if (gradAction === 'delete') {
+                mockStudents = mockStudents.filter(s => !s.class_name.startsWith("IX-"));
+            }
+
+            closePromotionModal();
+            renderStudentsTable();
+            updateStats();
+            showToast(`Kenaikan kelas massal berhasil diproses! ${promotedCount} siswa berhasil naik tingkat.`, 'success');
+        }
+
+        function copySQLSchema() {
+            const code = document.getElementById('sql-code-box').innerText;
+            navigator.clipboard.writeText(code);
+            showToast('Skrip SQL berhasil disalin ke clipboard!', 'success');
+        }
+
+        function exportCSV() {
+            let csv = 'No,NIS,Nama Siswa,Kelas,Hadir (H),Sakit (S),Izin (I),Alpa (A),Total Kehadiran\n';
+            const filterClass = document.getElementById('filter-class-recap').value;
+            let filteredStudents = mockStudents;
+            if (filterClass !== 'Semua') {
+                filteredStudents = mockStudents.filter(s => s.class_name === filterClass);
+            }
+
+            filteredStudents.forEach((s, i) => {
+                const studentAttendance = mockAttendance.filter(a => a.nis === s.nis);
+                let h = studentAttendance.filter(a => a.status === 'Hadir').length;
+                let s_count = studentAttendance.filter(a => a.status === 'Sakit').length;
+                let i_count = studentAttendance.filter(a => a.status === 'Izin').length;
+                let a_count = studentAttendance.filter(a => a.status === 'Alpa').length;
+                if (h === 0 && s_count === 0 && i_count === 0 && a_count === 0) {
+                    a_count = 1; // default alpa if never recorded
+                }
+                const total = h + s_count + i_count + a_count;
+                csv += `${i+1},${s.nis},"${s.name}",${s.class_name},${h},${s_count},${i_count},${a_count},${total}\n`;
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.setAttribute('href', url);
+            a.setAttribute('download', 'rekap-absensi-h-s-i-a-madrasah.csv');
+            a.click();
+            showToast('File CSV Rekap H,S,I,A berhasil di-download.', 'success');
+        }
+
+        function renderRecapTable() {
+            const tbody = document.getElementById('recap-table-body');
+            const filterClass = document.getElementById('filter-class-recap').value;
+            
+            let filteredStudents = mockStudents;
+            if (filterClass !== 'Semua') {
+                filteredStudents = mockStudents.filter(s => s.class_name === filterClass);
+            }
+
+            if (filteredStudents.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="9" class="p-6 text-center text-slate-400">Tidak ada data siswa.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = filteredStudents.map((s, i) => {
+                const studentAttendance = mockAttendance.filter(a => a.nis === s.nis);
+                let h = studentAttendance.filter(a => a.status === 'Hadir').length;
+                let s_count = studentAttendance.filter(a => a.status === 'Sakit').length;
+                let i_count = studentAttendance.filter(a => a.status === 'Izin').length;
+                let a_count = studentAttendance.filter(a => a.status === 'Alpa').length;
+                
+                if (h === 0 && s_count === 0 && i_count === 0 && a_count === 0) {
+                    a_count = 1;
+                }
+                const total = h + s_count + i_count + a_count;
+
+                return `
+                    <tr class="hover:bg-slate-50 transition border-b border-slate-100">
+                        <td class="p-4 font-medium">${i+1}</td>
+                        <td class="p-4 font-mono text-xs font-bold text-emerald-900">${s.nis}</td>
+                        <td class="p-4 font-semibold text-slate-800">${s.name}</td>
+                        <td class="p-4"><span class="bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-lg text-xs font-semibold">${s.class_name}</span></td>
+                        <td class="p-4 text-center font-bold text-emerald-800 bg-emerald-50/50">${h}</td>
+                        <td class="p-4 text-center font-bold text-blue-800 bg-blue-50/50">${s_count}</td>
+                        <td class="p-4 text-center font-bold text-amber-800 bg-amber-50/50">${i_count}</td>
+                        <td class="p-4 text-center font-bold text-rose-800 bg-rose-50/50">${a_count}</td>
+                        <td class="p-4 text-center font-extrabold text-slate-700">${total}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        window.onload = function() {
+            lucide.createIcons();
+            updateClock();
+            renderAttendanceLog();
+            
+            const filterLogSelect = document.getElementById('filter-class-log');
+            if (filterLogSelect) {
+                filterLogSelect.innerHTML = `<option value="Semua">Semua Kelas</option>` + defaultClasses.map(c => `<option value="${c}">${c}</option>`).join('');
+            }
+
+            const filterRecapSelect = document.getElementById('filter-class-recap');
+            if (filterRecapSelect) {
+                filterRecapSelect.innerHTML = `<option value="Semua">Semua Kelas</option>` + defaultClasses.map(c => `<option value="${c}">${c}</option>`).join('');
+            }
+        };
+    </script>
+</body>
+</html>
