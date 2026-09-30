@@ -585,6 +585,9 @@
                         <select id="filter-class-recap" onchange="renderRecapTable()" class="text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500">
                             <option value="Semua">Semua Kelas</option>
                         </select>
+                        <button onclick="openPermitModal()" class="bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition flex items-center gap-2 shadow-sm cursor-pointer">
+                            <i data-lucide="clipboard-pen" class="w-4 h-4"></i> Input Sakit / Izin
+                        </button>
                         <button onclick="exportExcel()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold px-4 py-2.5 rounded-xl transition flex items-center gap-2 cursor-pointer">
                             <i data-lucide="download" class="w-4 h-4"></i> Export Excel
                         </button>
@@ -716,7 +719,7 @@
     <!-- Footer Developer Attribution -->
     <footer class="no-print bg-emerald-950 text-emerald-300/80 text-xs py-3 border-t border-emerald-800/80 text-center flex-shrink-0">
         <div class="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-1.5 text-[11px]">
-            <p>© 2026 MADRASAH MAJU • Sistem Absensi Terpadu</p>
+            <p>© 2026 SENSASI Madrasah • Sistem Absensi Terpadu</p>
             <p class="font-medium flex items-center gap-1.5">
                 <span>Developer:</span>
                 <span class="text-white font-bold">Saprudin, S.Ag</span>
@@ -830,6 +833,61 @@
                     <i data-lucide="rotate-ccw" class="w-4 h-4"></i> Ya, Reset Kehadiran ke 0
                 </button>
             </div>
+        </div>
+    </div>
+
+    <!-- MODAL: INPUT SAKIT / IZIN -->
+    <div id="permit-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4 relative animate-in fade-in zoom-in duration-200">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center text-amber-700">
+                        <i data-lucide="clipboard-pen" class="w-4 h-4"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-slate-800 text-base">Input Keterangan Sakit / Izin</h3>
+                        <p class="text-[11px] text-slate-500">Catat ketidakhadiran resmi siswa</p>
+                    </div>
+                </div>
+                <button onclick="closePermitModal()" class="text-slate-400 hover:text-slate-600 cursor-pointer">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <form onsubmit="handleSavePermit(event)" class="space-y-3.5">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Filter Kelas Siswa</label>
+                    <select id="permit-class-filter" onchange="updatePermitStudentOptions()" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none">
+                        <option value="Semua">Semua Kelas</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Pilih Siswa *</label>
+                    <select id="permit-student-id" required class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-medium text-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none">
+                    </select>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Status Kehadiran *</label>
+                        <select id="permit-status" required class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold focus:ring-2 focus:ring-emerald-500 outline-none">
+                            <option value="Sakit" class="text-blue-700 font-bold">Sakit (S)</option>
+                            <option value="Izin" class="text-amber-700 font-bold">Izin (I)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Tanggal *</label>
+                        <input type="date" id="permit-date" required class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium focus:ring-2 focus:ring-emerald-500 outline-none">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Keterangan / Alasan (Opsional)</label>
+                    <input type="text" id="permit-note" placeholder="Contoh: Sakit demam / Acara keluarga" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs focus:ring-2 focus:ring-emerald-500 outline-none">
+                </div>
+                <div class="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                    <button type="button" onclick="closePermitModal()" class="bg-slate-100 text-slate-700 text-xs font-semibold px-4 py-2.5 rounded-xl transition cursor-pointer">Batal</button>
+                    <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition shadow-sm cursor-pointer">Simpan Keterangan</button>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -1317,19 +1375,29 @@
                 tbody.innerHTML = `<tr><td colspan="5" class="p-6 text-center text-slate-400">Belum ada absensi.</td></tr>`;
                 return;
             }
-            tbody.innerHTML = list.map(a => `
+            tbody.innerHTML = list.map(a => {
+                let badgeClass = 'bg-emerald-100 text-emerald-800';
+                if (a.status === 'Sakit') badgeClass = 'bg-blue-100 text-blue-800';
+                else if (a.status === 'Izin') badgeClass = 'bg-amber-100 text-amber-800';
+                else if (a.status === 'Alpa') badgeClass = 'bg-rose-100 text-rose-800';
+
+                return `
                 <tr class="hover:bg-slate-50 border-b border-slate-100">
                     <td class="p-4 font-medium text-emerald-800">${a.timestamp}</td>
                     <td class="p-4 font-mono text-xs font-bold text-emerald-900">${a.nis}</td>
-                    <td class="p-4 font-semibold text-slate-800">${a.name}</td>
+                    <td class="p-4 font-semibold text-slate-800">
+                        ${a.name}
+                        ${a.note ? `<span class="block text-[11px] text-slate-400 font-normal">Ket: ${a.note}</span>` : ''}
+                    </td>
                     <td class="p-4"><span class="bg-emerald-50 text-emerald-700 px-2 py-1 rounded-lg text-xs font-semibold">${a.class_name}</span></td>
-                    <td class="p-4"><span class="bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full text-xs font-bold">Hadir</span></td>
+                    <td class="p-4"><span class="${badgeClass} px-2.5 py-0.5 rounded-full text-xs font-bold">${a.status}</span></td>
                 </tr>
-            `).join('');
+                `;
+            }).join('');
         }
 
         function updateStats() {
-            const hadir = new Set(mockAttendance.map(a => a.nis)).size;
+            const hadir = new Set(mockAttendance.filter(a => a.status === 'Hadir').map(a => a.nis)).size;
             document.getElementById('stat-hadir').innerText = hadir;
             document.getElementById('stat-total').innerText = mockStudents.length;
             document.getElementById('stat-belum').innerText = Math.max(0, mockStudents.length - hadir);
@@ -1341,7 +1409,7 @@
 
             if (!studentDataUnlocked) {
                 actionBtns.classList.add('hidden');
-                container.innerHTML = `<div class="py-16 text-center text-slate-500 bg-slate-50 border border-dashed rounded-2xl"><i data-lucide="shield" class="w-8 h-8 mx-auto mb-2 text-slate-400"></i><p>Hanya Depelover yang tahu .</p></div>`;
+                container.innerHTML = `<div class="py-16 text-center text-slate-500 bg-slate-50 border border-dashed rounded-2xl"><i data-lucide="shield" class="w-8 h-8 mx-auto mb-2 text-slate-400"></i><p>Hanya Depelover yang tahu.</p></div>`;
                 lucide.createIcons();
                 return;
             }
@@ -1547,8 +1615,10 @@
                     (!a.academic_year || a.academic_year === schoolSettings.academicYear) &&
                     (!a.semester || a.semester === schoolSettings.semester)
                 );
-                let h = att.length; 
-                let s_count = 0; let i_count = 0; let a_count = h === 0 ? 1 : 0;
+                let h = att.filter(a => a.status === 'Hadir').length;
+                let s_count = att.filter(a => a.status === 'Sakit').length;
+                let i_count = att.filter(a => a.status === 'Izin').length;
+                let a_count = att.filter(a => a.status === 'Alpa').length;
                 let tot = h + s_count + i_count + a_count;
                 return `
                     <tr class="hover:bg-slate-50 border-b border-slate-100">
@@ -1564,6 +1634,110 @@
                     </tr>
                 `;
             }).join('');
+        }
+
+        function openPermitModal() {
+            const filterSel = document.getElementById('permit-class-filter');
+            const classes = getAvailableClasses();
+            filterSel.innerHTML = `<option value="Semua">Semua Kelas</option>` + classes.map(c => `<option value="${c}">${c}</option>`).join('');
+            
+            // Set input date to today
+            const today = new Date();
+            const yyyy = today.getFullYear();
+            const mm = String(today.getMonth() + 1).padStart(2, '0');
+            const dd = String(today.getDate()).padStart(2, '0');
+            document.getElementById('permit-date').value = `${yyyy}-${mm}-${dd}`;
+            document.getElementById('permit-note').value = '';
+
+            updatePermitStudentOptions();
+            document.getElementById('permit-modal').classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function closePermitModal() {
+            document.getElementById('permit-modal').classList.add('hidden');
+        }
+
+        function updatePermitStudentOptions() {
+            const classFilter = document.getElementById('permit-class-filter').value;
+            const studentSel = document.getElementById('permit-student-id');
+            const list = classFilter === 'Semua' ? mockStudents : mockStudents.filter(s => s.class_name === classFilter);
+
+            if (list.length === 0) {
+                studentSel.innerHTML = '<option value="">(Tidak ada siswa)</option>';
+                return;
+            }
+
+            studentSel.innerHTML = list.map(s => `
+                <option value="${s.id}">${s.name} (${s.class_name} - ${s.nis})</option>
+            `).join('');
+        }
+
+        async function handleSavePermit(e) {
+            e.preventDefault();
+            const studentId = document.getElementById('permit-student-id').value;
+            const status = document.getElementById('permit-status').value;
+            const rawDate = document.getElementById('permit-date').value;
+            const note = document.getElementById('permit-note').value.trim();
+
+            const student = mockStudents.find(s => s.id == studentId);
+            if (!student) {
+                showToast('Pilih siswa yang valid!', 'error');
+                return;
+            }
+
+            const targetDate = rawDate ? new Date(rawDate) : new Date();
+            const dateStr = targetDate.toDateString();
+            const currentTime = new Date().toLocaleTimeString('id-ID');
+
+            // Cek apakah siswa sudah memiliki catatan absensi pada tanggal tersebut
+            const existingIdx = mockAttendance.findIndex(a => a.nis === student.nis && a.date_str === dateStr);
+
+            const attendanceRecord = {
+                id: is_preview ? Date.now().toString() : undefined,
+                student_id: student.id,
+                nis: student.nis,
+                name: student.name,
+                class_name: student.class_name,
+                academic_year: schoolSettings.academicYear || "2026/2027",
+                semester: schoolSettings.semester || "Ganjil",
+                timestamp: currentTime,
+                date_str: dateStr,
+                status: status,
+                type: status,
+                note: note
+            };
+
+            if (existingIdx !== -1) {
+                mockAttendance[existingIdx] = { ...mockAttendance[existingIdx], ...attendanceRecord };
+            } else {
+                mockAttendance.unshift(attendanceRecord);
+            }
+
+            if (!is_preview && supabaseClient) {
+                try {
+                    await supabaseClient.from('attendance').upsert([{
+                        student_id: student.id,
+                        nis: student.nis,
+                        name: student.name,
+                        class_name: student.class_name,
+                        academic_year: schoolSettings.academicYear || "2026/2027",
+                        semester: schoolSettings.semester || "Ganjil",
+                        status: status,
+                        type: status,
+                        timestamp: currentTime,
+                        date_str: dateStr
+                    }]);
+                } catch (err) {
+                    console.error("Gagal menyimpan keterangan di Supabase:", err);
+                }
+            }
+
+            closePermitModal();
+            renderAttendanceLog();
+            renderRecapTable();
+            updateStats();
+            showToast(`Status ${student.name} berhasil dicatat sebagai ${status}.`, 'success');
         }
 
         // ==========================================
@@ -1666,9 +1840,15 @@
             const list = cls === 'Semua' ? mockStudents : mockStudents.filter(s => s.class_name === cls);
             
             const exportData = list.map((s, i) => {
-                const att = mockAttendance.filter(a => a.nis === s.nis);
-                let h = att.length; 
-                let s_count = 0; let i_count = 0; let a_count = h === 0 ? 1 : 0;
+                const att = mockAttendance.filter(a => 
+                    a.nis === s.nis && 
+                    (!a.academic_year || a.academic_year === schoolSettings.academicYear) &&
+                    (!a.semester || a.semester === schoolSettings.semester)
+                );
+                let h = att.filter(a => a.status === 'Hadir').length;
+                let s_count = att.filter(a => a.status === 'Sakit').length;
+                let i_count = att.filter(a => a.status === 'Izin').length;
+                let a_count = att.filter(a => a.status === 'Alpa').length;
                 let tot = h + s_count + i_count + a_count;
                 return {
                     "No": i + 1,
