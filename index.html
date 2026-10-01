@@ -1328,33 +1328,82 @@ let SUPABASE_URL = "https://jmlfvdkeqlxzvgbrxtts.supabase.co";
                     camBtnText.innerText = 'Tutup Kamera';
                     appState.cameraActive = true;
 
-                    // Menggunakan library ZXing yang mendukung penuh webcam laptop dan kamera HP
+                    // Konfigurasi Hints Sensitivitas Jarak Jauh ZXing
+                    const hints = new Map();
+                    if (window.ZXing && window.ZXing.DecodeHintType && window.ZXing.BarcodeFormat) {
+                        // Fokus spesifik pada format kartu pelajar madrasah agar proses instan
+                        hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+                            ZXing.BarcodeFormat.CODE_128,
+                            ZXing.BarcodeFormat.CODE_39,
+                            ZXing.BarcodeFormat.EAN_13,
+                            ZXing.BarcodeFormat.QR_CODE
+                        ]);
+                        // TRY_HARDER: membaca barcode dari jarak jauh, resolusi kecil, atau sudut miring
+                        hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+                    }
+
+                    // Inisialisasi reader dengan interval super cepat (40ms ~ 25 FPS untuk respon instan)
                     if (window.ZXing && window.ZXing.BrowserMultiFormatReader) {
                         if (!zxingReader) {
-                            zxingReader = new ZXing.BrowserMultiFormatReader();
+                            zxingReader = new ZXing.BrowserMultiFormatReader(hints, 40);
                         }
 
-                        // Mengaktifkan kamera bawaan laptop secara otomatis
-                        await zxingReader.decodeFromVideoDevice(null, videoEl, (result, err) => {
+                        // Targetkan resolusi Full HD (1080p) agar garis barcode jarak jauh tetap tajam dan terbaca jelas
+                        const hdConstraints = {
+                            video: {
+                                width: { min: 1280, ideal: 1920, max: 3840 },
+                                height: { min: 720, ideal: 1080, max: 2160 },
+                                facingMode: { ideal: "environment" }
+                            }
+                        };
+
+                        const scanCallback = (result, err) => {
                             if (result && appState.cameraActive) {
                                 const code = result.getText ? result.getText() : result.text;
-                                if (code) {
+                                if (code && code.trim().length > 0) {
                                     processBarcode(code.trim());
-                                    toggleCamera(); // Otomatis menutup kamera setelah sukses scan
+                                    toggleCamera(); // Tutup kamera otomatis setelah berhasil absen
                                 }
                             }
-                        });
+                        };
+
+                        try {
+                            if (typeof zxingReader.decodeFromConstraints === 'function') {
+                                await zxingReader.decodeFromConstraints(hdConstraints, videoEl, scanCallback);
+                            } else {
+                                await zxingReader.decodeFromVideoDevice(null, videoEl, scanCallback);
+                            }
+                        } catch (eConstraints) {
+                            // Fallback jika laptop hanya mendukung perangkat standar
+                            await zxingReader.decodeFromVideoDevice(null, videoEl, scanCallback);
+                        }
+
+                        // Mengaktifkan Continuous Autofokus dan Exposure agar objek jarak jauh tetap tajam
+                        setTimeout(() => {
+                            if (videoEl && videoEl.srcObject && videoEl.srcObject.getVideoTracks) {
+                                const track = videoEl.srcObject.getVideoTracks()[0];
+                                if (track && track.applyConstraints) {
+                                    track.applyConstraints({
+                                        advanced: [
+                                            { focusMode: "continuous" },
+                                            { exposureMode: "continuous" }
+                                        ]
+                                    }).catch(() => {});
+                                }
+                            }
+                        }, 500);
+
                     } else {
-                        // Fallback ke WebRTC native
+                        // Fallback ke WebRTC native resolusi tinggi
                         const stream = await navigator.mediaDevices.getUserMedia({
-                            video: { width: { ideal: 1280 }, height: { ideal: 720 } }
+                            video: { width: { min: 1280, ideal: 1920 }, height: { min: 720, ideal: 1080 } }
                         }).catch(() => navigator.mediaDevices.getUserMedia({ video: true }));
 
                         videoEl.srcObject = stream;
                         appState.cameraStream = stream;
 
                         if ('BarcodeDetector' in window) {
-                            const bd = new BarcodeDetector({ formats: ['code_128', 'qr_code', 'ean_13', 'code_39'] });
+                            const bd = new BarcodeDetector({ formats: ['code_128', 'code_39', 'ean_13', 'qr_code'] });
                             window.barcodeScanInterval = setInterval(async () => {
                                 if (!appState.cameraActive) return;
                                 try {
@@ -1364,17 +1413,17 @@ let SUPABASE_URL = "https://jmlfvdkeqlxzvgbrxtts.supabase.co";
                                         toggleCamera();
                                     }
                                 } catch (e) {}
-                            }, 400);
+                            }, 50); // Kecepatan scanning native ditingkatkan ke 50ms
                         }
                     }
-                    showToast('Kamera laptop aktif. Arahkan barcode ke kamera.', 'info');
+                    showToast('Kamera aktif (Mode Ultra-Sensitif Jarak Jauh).', 'info');
                 } catch (err) {
                     console.error("Camera error:", err);
                     appState.cameraActive = false;
                     camContainer.classList.add('hidden');
                     scanGraphic.classList.remove('hidden');
                     camBtnText.innerText = 'Buka Kamera';
-                    showToast('Gagal mengakses kamera laptop. Pastikan izin kamera telah disetujui di browser.', 'error');
+                    showToast('Gagal mengakses kamera. Pastikan izin kamera aktif di browser.', 'error');
                 }
             } else {
                 if (zxingReader) {
@@ -1383,6 +1432,11 @@ let SUPABASE_URL = "https://jmlfvdkeqlxzvgbrxtts.supabase.co";
                 if (appState.cameraStream) {
                     appState.cameraStream.getTracks().forEach(t => t.stop());
                     appState.cameraStream = null;
+                }
+                if (videoEl && videoEl.srcObject) {
+                    const tracks = videoEl.srcObject.getTracks ? videoEl.srcObject.getTracks() : [];
+                    tracks.forEach(t => t.stop());
+                    videoEl.srcObject = null;
                 }
                 if (window.barcodeScanInterval) {
                     clearInterval(window.barcodeScanInterval);
