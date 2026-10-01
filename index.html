@@ -54,6 +54,18 @@
             border-color: transparent !important;
         }
 
+        /* Penataan alamat panjang agar tidak menabrak blok tanda tangan */
+        .card-address-clamp {
+            font-size: 8.5px !important;
+            line-height: 11px !important;
+            display: -webkit-box !important;
+            -webkit-line-clamp: 2 !important;
+            -webkit-box-orient: vertical !important;
+            overflow: hidden !important;
+            word-break: break-word !important;
+            max-height: 23px !important;
+        }
+
         .a4-sheet-wrapper {
             margin-bottom: 24px;
         }
@@ -189,7 +201,7 @@
         const is_preview = false; // SET KE FALSE UNTUK PRODUKSI SUPABASE
         
         // MASUKKAN KREDENSIAL SUPABASE ANDA DI SINI
-let SUPABASE_URL = "https://jmlfvdkeqlxzvgbrxtts.supabase.co";
+        let SUPABASE_URL = "https://jmlfvdkeqlxzvgbrxtts.supabase.co";
         let SUPABASE_ANON_KEY = "sb_publishable_OXkbtfOQs7zWGls1o3Pvrw_To8aKDE-";
         let supabaseClient = null;
 
@@ -721,7 +733,7 @@ let SUPABASE_URL = "https://jmlfvdkeqlxzvgbrxtts.supabase.co";
     <!-- Footer Developer Attribution -->
     <footer class="no-print bg-emerald-950 text-emerald-300/80 text-xs py-3 border-t border-emerald-800/80 text-center flex-shrink-0">
         <div class="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-1.5 text-[11px]">
-            <p>© 2026  Madrasah Maju • Sistem Absensi Terpadu</p>
+            <p>© 2026 Madrasah Maju • Sistem Absensi Terpadu</p>
             <p class="font-medium flex items-center gap-1.5">
                 <span>Developer:</span>
                 <span class="text-white font-bold">Saprudin, S.Ag</span>
@@ -1002,27 +1014,27 @@ let SUPABASE_URL = "https://jmlfvdkeqlxzvgbrxtts.supabase.co";
                                         <span class="text-[9px] font-bold text-slate-500 tracking-widest uppercase px-3 pb-0.5 inline-block">KARTU PELAJAR</span>
                                     </div>
                                     
-                                    <div class="flex items-start gap-2.5 mt-1 flex-1 min-h-0 pb-1">
-                                        <img src="${s.photo}" class="w-[60px] h-[80px] rounded-lg object-cover border border-emerald-600 shadow-sm flex-shrink-0 bg-emerald-50">
-                                        <div class="overflow-hidden space-y-0.5 text-left text-[11px] leading-tight pt-1">
-                                            <h4 class="font-bold text-slate-800 text-xs truncate">${s.name}</h4>
-                                            <p class="font-mono font-semibold text-emerald-800 text-[10px]">${idLabel}: ${s.nis}</p>
-                                            <p class="text-slate-600 text-[10px]">Jenis Kelamin: ${s.gender === 'L' ? 'Laki-laki' : 'Perempuan'}</p>
-                                            <p class="text-slate-600 text-[10px] line-clamp-2 leading-tight">Alamat: ${s.address}</p>
+                                    <div class="flex items-start gap-2 mt-0.5 flex-1 min-h-0">
+                                        <img src="${s.photo}" class="w-[56px] h-[74px] rounded-lg object-cover border border-emerald-600 shadow-sm flex-shrink-0 bg-emerald-50">
+                                        <div class="overflow-hidden space-y-0.5 text-left text-[10px] leading-tight pt-0.5 flex-1 min-w-0">
+                                            <h4 class="font-bold text-slate-800 text-[11px] truncate leading-tight">${s.name}</h4>
+                                            <p class="font-mono font-semibold text-emerald-800 text-[9.5px] leading-tight">${idLabel}: ${s.nis}</p>
+                                            <p class="text-slate-600 text-[9px] leading-tight">Jenis Kelamin: ${s.gender === 'L' ? 'Laki-laki' : 'Perempuan'}</p>
+                                            <p class="text-slate-600 card-address-clamp" title="${s.address || '-'}">Alamat: ${s.address || '-'}</p>
                                         </div>
                                     </div>
 
-                                    <div class="flex justify-between items-end pt-1 mt-auto flex-shrink-0" style="height: 48px;">
+                                    <div class="flex justify-between items-end pt-0.5 mt-auto flex-shrink-0" style="height: 44px;">
                                         <div class="w-1/2 flex flex-col justify-end pb-0.5">
                                             <svg id="bulk-bc-svg-${globalIdx}" class="w-full" style="height: 20px; max-width: 140px;"></svg>
                                         </div>
-                                        <div class="w-1/2 text-center text-[8px] text-slate-700 leading-tight flex flex-col justify-end items-center">
-                                            <p class="m-0">${schoolSettings.city}, ${schoolSettings.cardIssueDate}</p>
-                                            <p class="font-medium m-0">${schoolSettings.leaderType}</p>
-                                            <div class="h-5 flex items-center justify-center my-0.5 w-full">
-                                                ${schoolSettings.leaderSignature ? `<img src="${schoolSettings.leaderSignature}" class="max-h-5 max-w-full object-contain mx-auto" alt="">` : ''}
+                                        <div class="w-1/2 text-center text-[7.5px] text-slate-700 leading-tight flex flex-col justify-end items-center">
+                                            <p class="m-0 leading-none">${schoolSettings.city}, ${schoolSettings.cardIssueDate}</p>
+                                            <p class="font-medium m-0 leading-tight">${schoolSettings.leaderType}</p>
+                                            <div class="h-4 flex items-center justify-center my-0.5 w-full">
+                                                ${schoolSettings.leaderSignature ? `<img src="${schoolSettings.leaderSignature}" class="max-h-4 max-w-full object-contain mx-auto" alt="">` : ''}
                                             </div>
-                                            <p class="font-bold text-emerald-900 underline truncate m-0">${schoolSettings.leaderName}</p>
+                                            <p class="font-bold text-emerald-900 underline truncate m-0 leading-tight">${schoolSettings.leaderName}</p>
                                         </div>
                                     </div>
                                 </div>
@@ -1081,27 +1093,27 @@ let SUPABASE_URL = "https://jmlfvdkeqlxzvgbrxtts.supabase.co";
                         <span class="text-[9px] font-bold text-slate-500 tracking-widest uppercase px-3 pb-0.5 inline-block">KARTU PELAJAR</span>
                     </div>
                     
-                    <div class="flex items-start gap-2.5 mt-1 flex-1 min-h-0 pb-1">
-                        <img src="${student.photo || `https://placehold.co/120x160/047857/ffffff?text=${student.name.charAt(0)}`}" class="w-[60px] h-[80px] rounded-lg object-cover border border-emerald-600 shadow-sm flex-shrink-0 bg-emerald-50">
-                        <div class="overflow-hidden space-y-0.5 text-left text-[11px] leading-tight pt-1">
-                            <h4 class="font-bold text-slate-800 text-xs truncate">${student.name}</h4>
-                            <p class="font-mono font-semibold text-emerald-800 text-[10px]">${idLabel}: ${student.nis}</p>
-                            <p class="text-slate-600 text-[10px]">Jenis Kelamin: ${student.gender === 'L' ? 'Laki-laki' : 'Perempuan'}</p>
-                            <p class="text-slate-600 text-[10px] line-clamp-2 leading-tight">Alamat: ${student.address || '-'}</p>
+                    <div class="flex items-start gap-2 mt-0.5 flex-1 min-h-0">
+                        <img src="${student.photo || `https://placehold.co/120x160/047857/ffffff?text=${student.name.charAt(0)}`}" class="w-[56px] h-[74px] rounded-lg object-cover border border-emerald-600 shadow-sm flex-shrink-0 bg-emerald-50">
+                        <div class="overflow-hidden space-y-0.5 text-left text-[10px] leading-tight pt-0.5 flex-1 min-w-0">
+                            <h4 class="font-bold text-slate-800 text-[11px] truncate leading-tight">${student.name}</h4>
+                            <p class="font-mono font-semibold text-emerald-800 text-[9.5px] leading-tight">${idLabel}: ${student.nis}</p>
+                            <p class="text-slate-600 text-[9px] leading-tight">Jenis Kelamin: ${student.gender === 'L' ? 'Laki-laki' : 'Perempuan'}</p>
+                            <p class="text-slate-600 card-address-clamp" title="${student.address || '-'}">Alamat: ${student.address || '-'}</p>
                         </div>
                     </div>
 
-                    <div class="flex justify-between items-end pt-1 mt-auto flex-shrink-0" style="height: 48px;">
+                    <div class="flex justify-between items-end pt-0.5 mt-auto flex-shrink-0" style="height: 44px;">
                         <div class="w-1/2 flex flex-col justify-end pb-0.5">
                             <svg id="single-bc-svg" class="w-full" style="height: 20px; max-width: 140px;"></svg>
                         </div>
-                        <div class="w-1/2 text-center text-[8px] text-slate-700 leading-tight flex flex-col justify-end items-center">
-                            <p class="m-0">${schoolSettings.city}, ${schoolSettings.cardIssueDate}</p>
-                            <p class="font-medium m-0">${schoolSettings.leaderType}</p>
-                            <div class="h-5 flex items-center justify-center my-0.5 w-full">
-                                ${schoolSettings.leaderSignature ? `<img src="${schoolSettings.leaderSignature}" class="max-h-5 max-w-full object-contain mx-auto" alt="">` : ''}
+                        <div class="w-1/2 text-center text-[7.5px] text-slate-700 leading-tight flex flex-col justify-end items-center">
+                            <p class="m-0 leading-none">${schoolSettings.city}, ${schoolSettings.cardIssueDate}</p>
+                            <p class="font-medium m-0 leading-tight">${schoolSettings.leaderType}</p>
+                            <div class="h-4 flex items-center justify-center my-0.5 w-full">
+                                ${schoolSettings.leaderSignature ? `<img src="${schoolSettings.leaderSignature}" class="max-h-4 max-w-full object-contain mx-auto" alt="">` : ''}
                             </div>
-                            <p class="font-bold text-emerald-900 underline truncate m-0">${schoolSettings.leaderName}</p>
+                            <p class="font-bold text-emerald-900 underline truncate m-0 leading-tight">${schoolSettings.leaderName}</p>
                         </div>
                     </div>
                 </div>
@@ -1244,7 +1256,7 @@ let SUPABASE_URL = "https://jmlfvdkeqlxzvgbrxtts.supabase.co";
             const idType = isNisn ? 'NISN' : 'NIS';
 
             if (!photo) {
-                photo = `https://placehold.co/120x160/047857/ffffff?text=${name.charAt(0)}`;
+                photo = `https://placehold.co/120x160/047857/ffffff?text=${encodeURIComponent(name.charAt(0))}`;
             }
 
             const duplicate = mockStudents.find(s => s.nis.toLowerCase() === nis.toLowerCase() && s.id != editId);
@@ -1266,12 +1278,18 @@ let SUPABASE_URL = "https://jmlfvdkeqlxzvgbrxtts.supabase.co";
             if (editId) {
                 if (!is_preview && supabaseClient) {
                     try {
-                        const { error } = await supabaseClient.from('students').update(payload).eq('id', editId);
+                        let { error } = await supabaseClient.from('students').update(payload).eq('id', editId);
+                        // Fallback jika database Supabase belum memiliki kolom id_type
+                        if (error && (error.message?.includes('id_type') || error.code === 'PGRST204' || error.details?.includes('id_type'))) {
+                            const { id_type, ...cleanPayload } = payload;
+                            const retry = await supabaseClient.from('students').update(cleanPayload).eq('id', editId);
+                            error = retry.error;
+                        }
                         if (error) throw error;
                         await loadInitialData();
                     } catch (err) {
                         console.error(err);
-                        showToast('Gagal update data di database', 'error');
+                        showToast('Gagal update data di database: ' + (err.message || ''), 'error');
                         return;
                     }
                 } else {
@@ -1284,12 +1302,18 @@ let SUPABASE_URL = "https://jmlfvdkeqlxzvgbrxtts.supabase.co";
             } else {
                 if (!is_preview && supabaseClient) {
                     try {
-                        const { error } = await supabaseClient.from('students').insert([payload]);
+                        let { error } = await supabaseClient.from('students').insert([payload]);
+                        // Fallback jika database Supabase belum memiliki kolom id_type
+                        if (error && (error.message?.includes('id_type') || error.code === 'PGRST204' || error.details?.includes('id_type'))) {
+                            const { id_type, ...cleanPayload } = payload;
+                            const retry = await supabaseClient.from('students').insert([cleanPayload]);
+                            error = retry.error;
+                        }
                         if (error) throw error;
                         await loadInitialData();
                     } catch (err) {
                         console.error(err);
-                        showToast('Gagal menyimpan siswa ke database', 'error');
+                        showToast('Gagal menyimpan siswa ke database: ' + (err.message || ''), 'error');
                         return;
                     }
                 } else {
@@ -1995,58 +2019,100 @@ let SUPABASE_URL = "https://jmlfvdkeqlxzvgbrxtts.supabase.co";
                     const worksheet = workbook.Sheets[firstSheetName];
                     const json = XLSX.utils.sheet_to_json(worksheet, {raw: false});
 
-                    if(json.length === 0) {
-                        showToast("File Excel kosong", "error");
+                    if(!json || json.length === 0) {
+                        showToast("File Excel kosong atau tidak terbaca", "error");
                         return;
                     }
 
+                    // Helper untuk membaca nama kolom secara toleran (tidak sensitif huruf besar/kecil/spasi)
+                    const getColVal = (row, candidates) => {
+                        const keys = Object.keys(row);
+                        for (const cand of candidates) {
+                            const foundKey = keys.find(k => k.trim().toLowerCase() === cand.toLowerCase());
+                            if (foundKey && row[foundKey] !== undefined && row[foundKey] !== null) {
+                                const val = String(row[foundKey]).trim();
+                                if (val !== '') return val;
+                            }
+                        }
+                        return '';
+                    };
+
                     let payloads = [];
                     json.forEach(row => {
-                        // Toleransi pembacaan format kolom NIS atau NISN
-                        let rawNis = row['NIS/NISN'] || row['NIS'] || row['NISN'] || row['nis'] || row['nisn'] || row['Nis'] || row['Nisn'];
-                        const name = row['Nama Lengkap'] || row['nama'] || row['name'];
-                        const cls = row['Kelas'] || row['kelas'] || row['class_name'] || 'VII-A (MTs)';
-                        const gender = row['Jenis Kelamin (L/P)'] || row['Jenis Kelamin'] || row['Gender (L/P)'] || row['gender'] || row['jk'] || 'L';
-                        const address = row['Alamat'] || row['alamat'] || row['address'] || '-';
-
-                        let finalNis = rawNis !== undefined && rawNis !== null ? String(rawNis).trim() : '';
-
-                        // Jika kosong atau "-", otomatis berikan nomor sementara (Belum Ada NIS/NISN)
-                        if (!finalNis || finalNis === '' || finalNis === '-' || finalNis.toLowerCase() === 'kosong') {
-                            finalNis = 'PND-' + Math.floor(10000 + Math.random() * 90000);
-                        }
+                        let rawNis = getColVal(row, ['NIS/NISN', 'NIS / NISN', 'NIS', 'NISN', 'No Induk', 'No. Induk', 'Nomor Induk', 'nis', 'nisn']);
+                        const name = getColVal(row, ['Nama Lengkap', 'Nama Siswa', 'Nama', 'Name', 'nama', 'nama_lengkap', 'nama lengkap']);
+                        const cls = getColVal(row, ['Kelas', 'Class', 'Rombel', 'Tingkat', 'kelas', 'class_name']) || '1-A';
+                        const gender = getColVal(row, ['Jenis Kelamin (L/P)', 'Jenis Kelamin', 'Gender (L/P)', 'Gender', 'JK', 'jk', 'L/P', 'gender']) || 'L';
+                        const address = getColVal(row, ['Alamat', 'Address', 'alamat', 'address', 'Tempat Tinggal']) || '-';
 
                         if(name) {
+                            let finalNis = rawNis;
+                            let isTemp = false;
+
+                            // Jika kosong, "-", atau "kosong", otomatis berikan nomor sementara (Belum Ada NIS/NISN)
+                            if (!finalNis || finalNis === '' || finalNis === '-' || finalNis.toLowerCase() === 'kosong') {
+                                finalNis = 'PND-' + Math.floor(10000 + Math.random() * 90000);
+                                isTemp = true;
+                            }
+
                             payloads.push({
                                 nis: finalNis,
-                                id_type: 'NIS',
+                                id_type: isTemp ? 'NIS' : (finalNis.length === 10 && !isNaN(finalNis) ? 'NISN' : 'NIS'),
                                 name: String(name),
                                 class_name: String(cls),
                                 gender: String(gender).charAt(0).toUpperCase(),
                                 address: String(address),
-                                photo: `https://placehold.co/120x160/047857/ffffff?text=${String(name).charAt(0)}`
+                                photo: `https://placehold.co/120x160/047857/ffffff?text=${encodeURIComponent(String(name).charAt(0))}`
                             });
                         }
                     });
 
                     if(payloads.length === 0) {
-                        showToast("Format data tidak sesuai template", "error");
+                        showToast("Format kolom Excel tidak sesuai template. Pastikan ada kolom Nama & NIS.", "error");
                         return;
                     }
 
+                    // Deduplikasi payload berdasarkan NIS agar batch import tidak error
+                    const uniquePayloads = [];
+                    const seenNis = new Set();
+                    for (const p of payloads) {
+                        const lowerNis = p.nis.toLowerCase();
+                        if (!seenNis.has(lowerNis)) {
+                            seenNis.add(lowerNis);
+                            uniquePayloads.push(p);
+                        }
+                    }
+
                     if(!is_preview && supabaseClient) {
-                        const { error } = await supabaseClient.from('students').insert(payloads);
+                        // Gunakan upsert dengan onConflict: nis agar data yang sudah ada otomatis terupdate tanpa memicu crash duplikasi
+                        let { error } = await supabaseClient.from('students').upsert(uniquePayloads, { onConflict: 'nis' });
+                        
+                        // Fallback: jika tabel Supabase belum punya kolom id_type, buang field id_type dan kirim ulang
+                        if (error && (error.message?.includes('id_type') || error.code === 'PGRST204' || error.details?.includes('id_type'))) {
+                            const fallbackPayloads = uniquePayloads.map(({ id_type, ...rest }) => rest);
+                            const retry = await supabaseClient.from('students').upsert(fallbackPayloads, { onConflict: 'nis' });
+                            error = retry.error;
+                        }
+
                         if(error) throw error;
-                        loadInitialData();
+                        await loadInitialData();
                     } else {
-                        payloads.forEach(p => mockStudents.push({id: Date.now().toString()+Math.random(), ...p}));
+                        uniquePayloads.forEach(p => {
+                            const existingIdx = mockStudents.findIndex(s => s.nis.toLowerCase() === p.nis.toLowerCase());
+                            if (existingIdx !== -1) {
+                                mockStudents[existingIdx] = { ...mockStudents[existingIdx], ...p };
+                            } else {
+                                mockStudents.push({ id: Date.now().toString() + Math.random(), ...p });
+                            }
+                        });
                         renderStudentsTable();
                     }
                     updateClassDropdowns();
-                    showToast(`Impor ${payloads.length} siswa berhasil`);
+                    showToast(`Berhasil mengimpor ${uniquePayloads.length} data siswa!`);
                 } catch (err) {
-                    console.error(err);
-                    showToast("Gagal memproses file Excel", "error");
+                    console.error("Gagal memproses file Excel:", err);
+                    const detail = err && err.message ? `: ${err.message}` : '';
+                    showToast(`Gagal memproses file Excel${detail}`, "error");
                 }
             };
             reader.readAsArrayBuffer(file);
