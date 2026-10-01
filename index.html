@@ -12,6 +12,8 @@
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
     <!-- Tambahan Library SheetJS untuk Ekspor/Impor Excel (.xlsx) -->
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <!-- Library ZXing Universal untuk Pembaca Barcode Webcam Laptop & Kamera HP -->
+    <script src="https://unpkg.com/@zxing/library@latest"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -187,7 +189,7 @@
         const is_preview = false; // SET KE FALSE UNTUK PRODUKSI SUPABASE
         
         // MASUKKAN KREDENSIAL SUPABASE ANDA DI SINI
-        let SUPABASE_URL = "https://jmlfvdkeqlxzvgbrxtts.supabase.co";
+let SUPABASE_URL = "https://jmlfvdkeqlxzvgbrxtts.supabase.co";
         let SUPABASE_ANON_KEY = "sb_publishable_OXkbtfOQs7zWGls1o3Pvrw_To8aKDE-";
         let supabaseClient = null;
 
@@ -436,7 +438,7 @@
 
                     <div class="w-full my-2">
                         <div id="camera-container" class="hidden relative w-full h-44 bg-slate-900 rounded-xl overflow-hidden flex items-center justify-center border-2 border-emerald-500">
-                            <video id="camera-preview" class="w-full h-full object-cover" autoplay playsinline></video>
+                            <video id="camera-preview" class="w-full h-full object-cover" autoplay playsinline muted></video>
                             <div class="absolute inset-0 border-2 border-emerald-400/50 flex items-center justify-center pointer-events-none">
                                 <div class="w-3/4 h-12 border-2 border-dashed border-emerald-400 animate-pulse"></div>
                             </div>
@@ -457,7 +459,7 @@
                 <div class="w-full mt-4 space-y-2">
                     <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Manual Input (Darurat)</p>
                     <div class="relative flex items-center">
-                        <input type="text" id="manual-nis" placeholder="Ketik NIS siswa..." class="w-full bg-slate-50 border border-slate-200 rounded-xl pl-3.5 pr-20 py-2.5 text-sm font-mono focus:ring-2 focus:ring-emerald-500 outline-none" onkeypress="if(event.key === 'Enter') { submitManualNis(); }">
+                        <input type="text" id="manual-nis" placeholder="Ketik NIS siswa..." class="w-full bg-slate-50 border border-slate-200 rounded-xl pl-3.5 pr-20 py-2.5 text-sm font-mono focus:ring-2 focus:ring-emerald-500 outline-none" onkeydown="if(event.key === 'Enter') { submitManualNis(); }">
                         <button type="button" onclick="submitManualNis()" class="absolute right-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-sm transition flex items-center gap-1 cursor-pointer">
                             <span>Enter</span>
                             <i data-lucide="corner-down-left" class="w-3.5 h-3.5"></i>
@@ -1281,56 +1283,114 @@
             }
         }, 1000);
 
-        // Hardware Barcode Scanner Listener
-        window.addEventListener('keypress', (e) => {
-            if (appState.currentTab !== 'scanner' || ['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+        // Hardware Barcode Scanner USB (Otomatis mendeteksi saat scanner USB dicolok & menembak barcode)
+        window.addEventListener('keydown', (e) => {
+            // Hanya aktif saat pengguna berada di tab scanner
+            if (appState.currentTab !== 'scanner') return;
+
+            const activeTag = document.activeElement ? document.activeElement.tagName : '';
+            const activeId = document.activeElement ? document.activeElement.id : '';
+
+            // Abaikan jika sedang mengetik di input modal atau textarea lain
+            if (['SELECT', 'TEXTAREA'].includes(activeTag)) return;
+            if (activeTag === 'INPUT' && activeId !== 'manual-nis') return;
+
             if (e.key === 'Enter') {
                 if (appState.barcodeBuffer.trim().length > 0) {
+                    e.preventDefault();
                     processBarcode(appState.barcodeBuffer.trim());
                     appState.barcodeBuffer = '';
+                    const manualInput = document.getElementById('manual-nis');
+                    if (manualInput) manualInput.value = '';
                 }
-            } else {
+            } else if (e.key && e.key.length === 1) {
                 appState.barcodeBuffer += e.key;
                 clearTimeout(window.barcodeTimer);
-                window.barcodeTimer = setTimeout(() => appState.barcodeBuffer = '', 500);
+                // Barcode scanner USB menembak karakter dengan jeda milidetik
+                window.barcodeTimer = setTimeout(() => {
+                    appState.barcodeBuffer = '';
+                }, 400);
             }
         });
 
+        let zxingReader = null;
+
         async function toggleCamera() {
             const videoEl = document.getElementById('camera-preview');
+            const camContainer = document.getElementById('camera-container');
+            const scanGraphic = document.getElementById('scanner-graphic');
+            const camBtnText = document.getElementById('cam-btn-text');
+
             if (!appState.cameraActive) {
                 try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-                    videoEl.srcObject = stream;
-                    appState.cameraStream = stream;
+                    camContainer.classList.remove('hidden');
+                    scanGraphic.classList.add('hidden');
+                    camBtnText.innerText = 'Tutup Kamera';
                     appState.cameraActive = true;
-                    document.getElementById('camera-container').classList.remove('hidden');
-                    document.getElementById('scanner-graphic').classList.add('hidden');
-                    document.getElementById('cam-btn-text').innerText = 'Tutup Kamera';
-                    
-                    if ('BarcodeDetector' in window) {
-                        const bd = new BarcodeDetector({ formats: ['code_128', 'qr_code', 'ean_13', 'code_39'] });
-                        window.barcodeScanInterval = setInterval(async () => {
-                            if (!appState.cameraActive) return;
-                            try {
-                                const codes = await bd.detect(videoEl);
-                                if (codes.length > 0) {
-                                    processBarcode(codes[0].rawValue);
-                                    toggleCamera(); // Auto close on scan
+
+                    // Menggunakan library ZXing yang mendukung penuh webcam laptop dan kamera HP
+                    if (window.ZXing && window.ZXing.BrowserMultiFormatReader) {
+                        if (!zxingReader) {
+                            zxingReader = new ZXing.BrowserMultiFormatReader();
+                        }
+
+                        // Mengaktifkan kamera bawaan laptop secara otomatis
+                        await zxingReader.decodeFromVideoDevice(null, videoEl, (result, err) => {
+                            if (result && appState.cameraActive) {
+                                const code = result.getText ? result.getText() : result.text;
+                                if (code) {
+                                    processBarcode(code.trim());
+                                    toggleCamera(); // Otomatis menutup kamera setelah sukses scan
                                 }
-                            } catch (e) {}
-                        }, 500);
+                            }
+                        });
+                    } else {
+                        // Fallback ke WebRTC native
+                        const stream = await navigator.mediaDevices.getUserMedia({
+                            video: { width: { ideal: 1280 }, height: { ideal: 720 } }
+                        }).catch(() => navigator.mediaDevices.getUserMedia({ video: true }));
+
+                        videoEl.srcObject = stream;
+                        appState.cameraStream = stream;
+
+                        if ('BarcodeDetector' in window) {
+                            const bd = new BarcodeDetector({ formats: ['code_128', 'qr_code', 'ean_13', 'code_39'] });
+                            window.barcodeScanInterval = setInterval(async () => {
+                                if (!appState.cameraActive) return;
+                                try {
+                                    const codes = await bd.detect(videoEl);
+                                    if (codes && codes.length > 0) {
+                                        processBarcode(codes[0].rawValue);
+                                        toggleCamera();
+                                    }
+                                } catch (e) {}
+                            }, 400);
+                        }
                     }
+                    showToast('Kamera laptop aktif. Arahkan barcode ke kamera.', 'info');
                 } catch (err) {
-                    showToast('Gagal mengakses kamera.', 'error');
+                    console.error("Camera error:", err);
+                    appState.cameraActive = false;
+                    camContainer.classList.add('hidden');
+                    scanGraphic.classList.remove('hidden');
+                    camBtnText.innerText = 'Buka Kamera';
+                    showToast('Gagal mengakses kamera laptop. Pastikan izin kamera telah disetujui di browser.', 'error');
                 }
             } else {
-                if (appState.cameraStream) appState.cameraStream.getTracks().forEach(t => t.stop());
-                clearInterval(window.barcodeScanInterval);
+                if (zxingReader) {
+                    try { zxingReader.reset(); } catch (e) {}
+                }
+                if (appState.cameraStream) {
+                    appState.cameraStream.getTracks().forEach(t => t.stop());
+                    appState.cameraStream = null;
+                }
+                if (window.barcodeScanInterval) {
+                    clearInterval(window.barcodeScanInterval);
+                }
                 appState.cameraActive = false;
-                document.getElementById('camera-container').classList.add('hidden');
-                document.getElementById('scanner-graphic').classList.remove('hidden');
-                document.getElementById('cam-btn-text').innerText = 'Buka Kamera';
+                camContainer.classList.add('hidden');
+                scanGraphic.classList.remove('hidden');
+                camBtnText.innerText = 'Buka Kamera';
             }
         }
 
@@ -1409,7 +1469,7 @@
 
             if (!studentDataUnlocked) {
                 actionBtns.classList.add('hidden');
-                container.innerHTML = `<div class="py-16 text-center text-slate-500 bg-slate-50 border border-dashed rounded-2xl"><i data-lucide="shield" class="w-8 h-8 mx-auto mb-2 text-slate-400"></i><p>Hanya Depelover yang tahu.</p></div>`;
+                container.innerHTML = `<div class="py-16 text-center text-slate-500 bg-slate-50 border border-dashed rounded-2xl"><i data-lucide="shield" class="w-8 h-8 mx-auto mb-2 text-slate-400"></i><p>Hanya Depelover yang tahu .</p></div>`;
                 lucide.createIcons();
                 return;
             }
